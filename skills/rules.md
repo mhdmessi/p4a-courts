@@ -21,6 +21,8 @@
 - Court points: a win on court k of n = n−k+1 points.
 
 ## Rankings
-- Default sort: **points per game** (court-weighted). The sims showed win % is misleading with rating-balanced courts: a 3.06 player came 3rd. Win % and Wins are also available.
+- Default sort: **Points** = average game points scored per game. The owner wants it like Pickleheads: "even if you lose, the points you earn helps your ranking." Other sorts: +/- (point differential per game), Win %, Court (court-weighted points per game).
+- Win % alone is misleading with rating-balanced courts (a 3.06 player came 3rd in the sims).
+- **Group rating** (`groupRatings`): DUPR-style. It starts at the player's DUPR rating (or the default) and moves each game by K=0.08 × (stretched point share − expected share from the rating gap). Shown on player cards. Players with no DUPR rating are placed on courts by group rating after 6+ scored games.
 - Players need ≥ max(5, 40% of the most games anyone played) to be ranked in Pts/game or Win %.
 - Every day with scored games is saved in `history` (stats plus a game list) for player cards (record, streaks, best partner).

@@ -148,4 +148,20 @@ console.log('ALL TESTS PASSED');
   assert.deepStrictEqual(recent.map((x) => x.id), ['b', 'c', 'a']);
   console.log('rankings: ok');
 }
+// Points count even in a loss; group rating moves with score margin
+{
+  const days = [{ date: '2026-11-07', stats: {
+    a: { points: 2, wins: 1, games: 2, pf: 20, pa: 13, sg: 2 },
+    b: { points: 2, wins: 1, games: 2, pf: 13, pa: 20, sg: 2 },
+    c: { points: 0, wins: 0, games: 2, pf: 19, pa: 22, sg: 2 } } }];
+  const r = E.rankings(days, null, 'pfg', 0);
+  assert.deepStrictEqual(r.map((x) => x.id), ['a', 'c', 'b']); // c lost both but scored 19
+  const g = E.groupRatings([
+    { date: 'd', i: 1, a: ['p', 'q'], b: ['x', 'y'], sa: 11, sb: 2 },
+    { date: 'd', i: 2, a: ['p', 'x'], b: ['q', 'y'], sa: 9, sb: 11 },
+  ], { p: 3.5, q: 3.5, x: 3.5, y: 3.5 }, 3.0);
+  assert(g.p.rating > 3.5 && g.y.rating < 3.5, 'rating moves');
+  assert(Math.abs(g.p.rating - 3.5) < 0.1, 'moves are small');
+  console.log('points + group rating: ok', Object.entries(g).map(([n, v]) => n + ' ' + v.rating.toFixed(3)).join(', '));
+}
 console.log('ALL TESTS PASSED (incl. rankings)');

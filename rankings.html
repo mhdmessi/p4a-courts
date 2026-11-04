@@ -22,7 +22,7 @@
   const PERIODS = [[28, 'Last 4 weeks'], [56, 'Last 2 months'], [182, 'Last 6 months'], [0, 'All time']];
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const $app = document.getElementById('app');
-  let period = 56, sort = 'ppg', days = [], updated = null;
+  let period = 56, sort = 'pfg', days = [], updated = null;
 
   function render() {
     let since = null;
@@ -34,27 +34,30 @@
     const nDays = days.filter((d) => !since || d.date >= since).length;
     const latest = days.slice().sort((a, b) => (a.date < b.date ? 1 : -1))[0];
     const chip = (on, act, val, label) => `<button class="${on ? 'on' : ''}" data-${act}="${val}">${label}</button>`;
-    const needMin = sort === 'pct' || sort === 'ppg';
+    const needMin = sort !== 'wins';
+    const HEAD = { pfg: 'Pts/G', diff: '+/-', pct: 'Win%', ppg: 'Crt/G' };
+    const val = (x) => ({ pfg: x.pfg.toFixed(1), diff: (x.diff > 0 ? '+' : '') + x.diff.toFixed(1), pct: Math.round(x.pct * 100) + '%', ppg: x.ppg.toFixed(2) }[sort]);
+    const NOTE = { pfg: 'Points: average game points scored. Every point counts, even in a loss.', diff: '+/-: points scored minus allowed, per game.', pct: 'Win %: share of games won.', ppg: 'Court: a win on a higher court is worth more.' };
     const latestRows = latest ? Object.entries(latest.stats).map(([name, x]) => ({ name, ...x }))
-      .sort((a, b) => b.points - a.points || b.wins - a.wins) : [];
+      .sort((a, b) => (b.pf || 0) - (a.pf || 0) || b.wins - a.wins) : [];
     $app.innerHTML = `
       <div class="card">
         <h2>Leaderboard</h2>
         <div class="seg" style="margin-bottom:8px">${PERIODS.map(([v, l]) => chip(period === v, 'period', v, l)).join('')}</div>
-        <div class="seg" style="margin-bottom:10px">${chip(sort === 'ppg', 'sort', 'ppg', 'Pts/game')}${chip(sort === 'pct', 'sort', 'pct', 'Win %')}${chip(sort === 'wins', 'sort', 'wins', 'Wins')}</div>
+        <div class="seg" style="margin-bottom:10px">${chip(sort === 'pfg', 'sort', 'pfg', 'Points')}${chip(sort === 'diff', 'sort', 'diff', '+/-')}${chip(sort === 'pct', 'sort', 'pct', 'Win %')}${chip(sort === 'ppg', 'sort', 'ppg', 'Court')}</div>
         ${list.length ? `<table>
-          <tr><th></th><th>Player</th><th>${sort === 'pct' ? 'Win%' : sort === 'wins' ? 'Wins' : 'Pts/G'}</th><th>W-L</th><th>Days</th></tr>
+          <tr><th></th><th>Player</th><th>${HEAD[sort]}</th><th>W-L</th><th>Days</th></tr>
           ${list.map((x, i) => `<tr class="${needMin && !x.qualified ? 'dim' : ''}"><td class="rk">${i < 3 && (!needMin || x.qualified) ? ['🥇', '🥈', '🥉'][i] : i + 1}</td><td>${esc(x.id)}</td>
-            <td class="hl">${sort === 'pct' ? Math.round(x.pct * 100) + '%' : sort === 'wins' ? x.wins : x.ppg.toFixed(2)}</td><td>${x.wins}-${x.games - x.wins}</td><td>${x.days}</td></tr>`).join('')}
+            <td class="hl">${val(x)}</td><td>${x.wins}-${x.games - x.wins}</td><td>${x.days}</td></tr>`).join('')}
         </table>
-        <p class="muted small">${nDays} Saturday${nDays === 1 ? '' : 's'}. Pts/game: a win on a higher court is worth more.${needMin ? ' Needs ' + minGames + '+ games to rank.' : ''}</p>`
+        <p class="muted small">${nDays} Saturday${nDays === 1 ? '' : 's'}. ${NOTE[sort]}${needMin ? ' Needs ' + minGames + '+ games to rank.' : ''}</p>`
         : '<p class="muted">No games in this period yet.</p>'}
       </div>
       ${latest ? `<div class="card">
         <h2>Latest: ${esc(latest.date)}</h2>
         <table>
-          <tr><th></th><th>Player</th><th>Pts</th><th>W-L</th><th>Sat</th></tr>
-          ${latestRows.map((x, i) => `<tr><td class="rk">${i + 1}</td><td>${esc(x.name)}</td><td class="hl">${x.points}</td><td>${x.wins}-${x.games - x.wins}</td><td>${x.sits}</td></tr>`).join('')}
+          <tr><th></th><th>Player</th><th>Pts</th><th>+/-</th><th>W-L</th></tr>
+          ${latestRows.map((x, i) => `<tr><td class="rk">${i + 1}</td><td>${esc(x.name)}</td><td class="hl">${x.pf || 0}</td><td>${(x.pf || 0) - (x.pa || 0) > 0 ? '+' : ''}${(x.pf || 0) - (x.pa || 0)}</td><td>${x.wins}-${x.games - x.wins}</td></tr>`).join('')}
         </table>
       </div>` : ''}`;
   }

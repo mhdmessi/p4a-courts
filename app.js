@@ -16,7 +16,7 @@
     session: null,
     history: {},
     rankPeriod: 56,
-    rankSort: 'ppg',
+    rankSort: 'pfg',
   };
 
   const $ = (id) => document.getElementById(id);
@@ -34,7 +34,7 @@
       const s = JSON.parse(localStorage.getItem(KEY));
       if (s) {
         const out = { ...DEFAULTS, ...s, settings: { ...DEFAULTS.settings, ...s.settings } };
-        if (out.rankSort === 'pct' && !s.rankSortChosen) out.rankSort = 'ppg';
+        if (!s.rankSortChosen) out.rankSort = 'pfg';
         return out;
       }
     } catch (e) { /* fresh start */ }
@@ -48,7 +48,7 @@
     let games = 0;
     s.players.forEach((p) => {
       const x = st[p.id];
-      if (x && x.games) { stats[p.id] = { points: x.points, wins: x.wins, games: x.games, sits: x.sits }; games += x.games; }
+      if (x && x.games) { stats[p.id] = { points: x.points, wins: x.wins, games: x.games, sits: x.sits, pf: x.pf, pa: x.pa, sg: x.sg }; games += x.games; }
     });
     const list = [];
     s.rounds.forEach((round, r) => round.courts.forEach((c, k) => {
@@ -102,7 +102,21 @@
   const rating = (id) => (hasRating(id) ? Number(person(id).rating) : Number(S.settings.defaultRating));
   const nm = (id) => esc(person(id).name);
   const first = (id) => esc(person(id).name);
-  function ratings() { const o = {}; sess().players.forEach((p) => { o[p.id] = rating(p.id); }); return o; }
+  // Court placement: DUPR rating; players without one use their group rating after 6+ scored games.
+  function ratings() {
+    const gr = groupRatingMap();
+    const o = {};
+    sess().players.forEach((p) => {
+      const g = gr[person(p.id).name];
+      o[p.id] = !hasRating(p.id) && g && g.games >= 6 ? g.rating : rating(p.id);
+    });
+    return o;
+  }
+  function groupRatingMap() {
+    const seed = {};
+    Object.values(S.roster).forEach((p) => { if (!blank(p.rating)) seed[p.name] = Number(p.rating); });
+    return E.groupRatings(allGames(), seed, Number(S.settings.defaultRating));
+  }
   function findByName(name) { const k = name.trim().toLowerCase(); return Object.values(S.roster).find((p) => p.name.toLowerCase() === k); }
   function addToDay(name) {
     let p = findByName(name);
@@ -279,7 +293,7 @@
   function viewPlay() {
     const s = sess();
     if (!s.rounds.length) {
-      return `<div class="empty"><div class="ico">🏓</div>No round yet.<br><br>
+      return `<div class="empty"><div class="ico"><img src="icon.svg" alt="" style="width:56px;height:56px"></div>No round yet.<br><br>
         <button class="btn big" data-act="start" ${plan().courts < 1 ? 'disabled' : ''}>Start round 1 →</button>
         <p class="muted">${esc(planText())}</p></div>`;
     }
@@ -342,10 +356,13 @@
     Object.values(S.roster).forEach((p) => { o[p.id] = { name: p.name, dupr: (p.dupr || '').trim() }; });
     return o;
   }
+  // Today: most game points won, then +/-, then wins.
+  function todayRows(s) {
+    return E.standings(s).sort((a, b) => b.pf - a.pf || (b.pf - b.pa) - (a.pf - a.pa) || b.wins - a.wins);
+  }
   function viewResults() {
     const s = sess();
-    const rows = E.standings(s);
-    const st = E.derive(s);
+    const rows = todayRows(s);
     let today = '';
     if (rows.length) {
       const awards = E.dayAwards(s);
@@ -355,8 +372,8 @@
           <div class="between"><h2 style="margin:0">Today · ${esc(s.date)}</h2><span class="pill">${s.rounds.length} rounds</span></div>
           ${awards.length ? `<div class="awards" style="margin-top:12px">${awards.map((a) => `<div class="award"><div class="t">${esc(a.title)}</div><div class="w">${a.who.map(nm).join(' & ')}</div><div class="d">${esc(a.detail)}</div></div>`).join('')}</div>` : ''}
           <table style="margin-top:10px">
-            <tr><th></th><th>Player</th><th>Pts</th><th>W-L</th><th>Sat</th></tr>
-            ${rows.map((x, i) => `<tr><td class="rk">${i + 1}</td><td>${nm(x.id)}${x.streak >= 3 ? ' <span class="fire">🔥' + x.streak + '</span>' : ''}</td><td class="hl">${x.points}</td><td>${x.wins}-${x.games - x.wins}</td><td>${x.sits}</td></tr>`).join('')}
+            <tr><th></th><th>Player</th><th>Pts</th><th>+/-</th><th>W-L</th><th>Sat</th></tr>
+            ${rows.map((x, i) => `<tr class="click" data-act="card" data-id="${x.id}"><td class="rk">${i + 1}</td><td>${nm(x.id)}${x.streak >= 3 ? ' <span class="fire">🔥' + x.streak + '</span>' : ''}</td><td class="hl">${x.pf}</td><td>${x.pf - x.pa > 0 ? '+' : ''}${x.pf - x.pa}</td><td>${x.wins}-${x.games - x.wins}</td><td>${x.sits}</td></tr>`).join('')}
           </table>
         </div>
         <div class="card" id="dupr">
@@ -381,12 +398,20 @@
   function allGames() {
     const out = [];
     Object.values(S.history || {}).forEach((d) => (d.games || []).forEach((g) => out.push({
-      date: d.date, i: g.i, a: g.a.map((id) => person(id).name), b: g.b.map((id) => person(id).name), w: g.w,
+      date: d.date, i: g.i, a: g.a.map((id) => person(id).name), b: g.b.map((id) => person(id).name), w: g.w, sa: g.sa, sb: g.sb,
     })));
     return out;
   }
   const PERIODS = [[28, '4 wks'], [56, '2 mo'], [182, '6 mo'], [0, 'All']];
-  const SORTS = [['ppg', 'Pts/game'], ['pct', 'Win %'], ['wins', 'Wins']];
+  const SORTS = [['pfg', 'Points'], ['diff', '+/-'], ['pct', 'Win %'], ['ppg', 'Court']];
+  const SORT_HEAD = { pfg: 'Pts/G', diff: '+/-', pct: 'Win%', ppg: 'Crt/G', wins: 'Wins' };
+  const sortVal = (x) => ({ pfg: x.pfg.toFixed(1), diff: (x.diff > 0 ? '+' : '') + x.diff.toFixed(1), pct: Math.round(x.pct * 100) + '%', ppg: x.ppg.toFixed(2), wins: x.wins }[S.rankSort] || x.pfg.toFixed(1));
+  const SORT_NOTE = {
+    pfg: 'Points: average game points you score. Every point counts, even in a loss.',
+    diff: '+/-: average points scored minus points allowed per game.',
+    pct: 'Win %: share of games won.',
+    ppg: 'Court: court points per game; a win on a higher court is worth more.',
+  };
   function rankData() {
     const days = Object.values(S.history || {});
     const period = Number(S.rankPeriod);
@@ -399,7 +424,7 @@
   }
   function viewRankings() {
     const { list, minGames, nDays } = rankData();
-    const needMin = S.rankSort === 'ppg' || S.rankSort === 'pct';
+    const needMin = S.rankSort !== 'wins';
     const medal = (i, x) => (i < 3 && (!needMin || x.qualified) ? ['🥇', '🥈', '🥉'][i] : i + 1);
     return `
       <div class="card">
@@ -407,11 +432,11 @@
         <div class="seg" style="margin-bottom:8px">${PERIODS.map(([v, l]) => `<button class="${String(S.rankPeriod) === String(v) ? 'on' : ''}" data-act="rank" data-key="rankPeriod" data-val="${v}">${l}</button>`).join('')}</div>
         <div class="seg" style="margin-bottom:6px">${SORTS.map(([v, l]) => `<button class="${S.rankSort === v ? 'on' : ''}" data-act="rank" data-key="rankSort" data-val="${v}">${l}</button>`).join('')}</div>
         ${list.length ? `<table>
-          <tr><th></th><th>Player</th><th>${S.rankSort === 'pct' ? 'Win%' : S.rankSort === 'wins' ? 'Wins' : 'Pts/G'}</th><th>W-L</th><th>Days</th></tr>
+          <tr><th></th><th>Player</th><th>${SORT_HEAD[S.rankSort] || 'Pts/G'}</th><th>W-L</th><th>Days</th></tr>
           ${list.map((x, i) => `<tr class="click ${needMin && !x.qualified ? 'dim' : ''}" data-act="card" data-id="${x.id}"><td class="rk">${medal(i, x)}</td><td>${nm(x.id)}</td>
-            <td class="hl">${S.rankSort === 'pct' ? Math.round(x.pct * 100) + '%' : S.rankSort === 'wins' ? x.wins : x.ppg.toFixed(2)}</td><td>${x.wins}-${x.games - x.wins}</td><td>${x.days}</td></tr>`).join('')}
+            <td class="hl">${sortVal(x)}</td><td>${x.wins}-${x.games - x.wins}</td><td>${x.days}</td></tr>`).join('')}
         </table>
-        <p class="muted small">${nDays} Saturday${nDays === 1 ? '' : 's'}. ${S.rankSort === 'ppg' ? 'Pts/game: a win on a higher court is worth more, so beating tougher players counts more.' : ''} ${needMin ? `Needs ${minGames}+ games to rank.` : ''} Tap a player for their card.</p>
+        <p class="muted small">${nDays} Saturday${nDays === 1 ? '' : 's'}. ${SORT_NOTE[S.rankSort] || ''} ${needMin ? `Needs ${minGames}+ games to rank.` : ''} Tap a player for their card.</p>
         <button class="btn sec full" data-act="sharerank">Copy top 10 for WhatsApp</button>`
         : '<p class="muted">No games in this period yet.</p>'}
       </div>`;
@@ -517,9 +542,9 @@
         </div>`;
     } else {
       const loser = win === 'A' ? c.b : c.a;
-      const quick = timed ? '' : `<p class="muted" style="margin:0 0 8px">${team(loser)} scored:</p>
+      const quick = `<p class="muted" style="margin:0 0 8px">${team(loser)} scored${timed ? ' (game reached ' + target + ')' : ''}:</p>
         <div class="scoregrid">${Array.from({ length: target - 1 }, (_, i) => `<button data-act="quick" data-lo="${i}">${i}</button>`).join('')}</div>
-        <p class="muted small" style="margin:14px 0 8px">Close game or other score:</p>`;
+        <p class="muted small" style="margin:14px 0 8px">${timed ? 'Time ran out, close game or other score:' : 'Close game or other score:'}</p>`;
       const curA = !blank(c.sa) ? c.sa : '', curB = !blank(c.sb) ? c.sb : '';
       body = `<div class="between" style="margin-bottom:10px"><span>🏆 <b>${team(win === 'A' ? c.a : c.b)}</b></span><button class="btn ghost small" data-act="pickwin" data-side="">Change</button></div>
         ${quick}
@@ -546,6 +571,7 @@
     const { list } = rankData();
     const rk = list.findIndex((x) => x.id === id);
     const me = list[rk];
+    const gr = groupRatingMap()[p.name];
     const initials = p.name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
     return `<div class="scrim" data-act="close"><div class="sheet" data-stop>
       <div class="grab"></div>
@@ -553,10 +579,12 @@
         <div class="muted small">${hasRating(id) ? 'DUPR ' + rating(id).toFixed(2) : 'No rating'}${p.dupr ? ' · ID ' + esc(p.dupr) : ''}</div></div></div>
       <div class="stat">
         <div><b>${card.wins}-${card.losses}</b><span>Record</span></div>
-        <div><b>${me ? me.ppg.toFixed(2) : '–'}</b><span>Pts / game</span></div>
+        <div><b>${me ? me.pfg.toFixed(1) : '–'}</b><span>Pts / game</span></div>
         <div><b>${rk >= 0 ? '#' + (rk + 1) : '–'}</b><span>Rank</span></div>
       </div>
       <div class="stack" style="margin-top:12px">
+        <div class="between"><span class="muted">Group rating</span><b>${gr && gr.games ? gr.rating.toFixed(2) + (hasRating(id) ? ` <span class="muted small">(${(gr.rating - rating(id) >= 0 ? '+' : '') + (gr.rating - rating(id)).toFixed(2)} vs DUPR)</span>` : '') : '–'}</b></div>
+        <div class="between"><span class="muted">Point +/- per game</span><b>${me ? (me.diff > 0 ? '+' : '') + me.diff.toFixed(1) : '–'}</b></div>
         <div class="between"><span class="muted">Current streak</span><b>${card.streak > 0 ? '🔥 ' + card.streak + ' W' : card.streak < 0 ? -card.streak + ' L' : '–'}</b></div>
         <div class="between"><span class="muted">Best win streak</span><b>${card.bestStreak || '–'}</b></div>
         <div class="between"><span class="muted">Best partner</span><b>${card.bestPartner ? esc(card.bestPartner.name) + ' (' + card.bestPartner.w + '-' + (card.bestPartner.g - card.bestPartner.w) + ')' : '–'}</b></div>
@@ -617,7 +645,7 @@
   function lineupText() {
     const s = sess();
     const round = curRound();
-    return `🏓 P4A Round ${s.rounds.length}\n` +
+    return `🟡 P4A Round ${s.rounds.length}\n` +
       round.courts.map((c, k) => `Court ${k + 1}: ${c.a.map((id) => person(id).name).join(' & ')} vs ${c.b.map((id) => person(id).name).join(' & ')}`).join('\n') +
       (round.sitting.length ? `\nSitting: ${round.sitting.map((id) => person(id).name).join(', ')}` : '');
   }
@@ -710,19 +738,19 @@
       case 'rank': S[el.dataset.key] = isNaN(+el.dataset.val) ? el.dataset.val : +el.dataset.val; if (el.dataset.key === 'rankSort') S.rankSortChosen = true; save(); break;
       case 'card': sheet = { type: 'card', id: el.dataset.id }; break;
       case 'share': {
-        const rows = E.standings(s);
+        const rows = todayRows(s);
         const aw = E.dayAwards(s);
-        copy(`🏓 P4A ${s.date} recap (${s.rounds.length} rounds)\n` +
+        copy(`🟡 P4A ${s.date} recap (${s.rounds.length} rounds)\n` +
           (aw.length ? aw.map((a) => `🏅 ${a.title}: ${a.who.map((id) => person(id).name).join(' & ')} (${a.detail})`).join('\n') + '\n\n' : '') +
-          rows.map((x, i) => `${i + 1}. ${person(x.id).name}: ${x.points} pts, ${x.wins}-${x.games - x.wins}`).join('\n'));
+          rows.map((x, i) => `${i + 1}. ${person(x.id).name}: ${x.pf} pts (${x.pf - x.pa >= 0 ? '+' : ''}${x.pf - x.pa}), ${x.wins}-${x.games - x.wins}`).join('\n'));
         return;
       }
       case 'sharerank': {
         const { list } = rankData();
         const label = { 28: 'last 4 weeks', 56: 'last 2 months', 182: 'last 6 months', 0: 'all time' }[S.rankPeriod];
-        const needMin = S.rankSort === 'ppg' || S.rankSort === 'pct';
+        const needMin = S.rankSort !== 'wins';
         const top = list.filter((x) => !needMin || x.qualified).slice(0, 10);
-        copy(`🏆 P4A top 10, ${label}\n` + top.map((x, i) => `${i + 1}. ${person(x.id).name}: ${x.ppg.toFixed(2)} pts/game, ${x.wins}-${x.games - x.wins}`).join('\n'));
+        copy(`🏆 P4A top 10, ${label} (${SORT_HEAD[S.rankSort]})\n` + top.map((x, i) => `${i + 1}. ${person(x.id).name}: ${sortVal(x)}, ${x.wins}-${x.games - x.wins}`).join('\n'));
         return;
       }
       case 'dupr': { const out = duprFile(); download(`dupr-${s.date}.csv`, out.csv); toast(out.rows + ' games in the file'); return; }

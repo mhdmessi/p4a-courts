@@ -43,7 +43,7 @@
     const st = {};
     for (const p of session.players) {
       st[p.id] = {
-        id: p.id, games: 0, wins: 0, points: 0,
+        id: p.id, games: 0, wins: 0, points: 0, pf: 0, pa: 0, sg: 0,
         sits: p.joinRound == null ? 0 : (p.joinCredit || 0),
         lastSat: -1, pos: null, lastWon: false,
         partners: {}, met: {}, lastPartner: null, lastRoundPlayed: -1, streak: 0,
@@ -72,6 +72,10 @@
             s.lastRoundPlayed = r;
             if (w) {
               s.games++;
+              if (!blank(c.sa) && !blank(c.sb)) {
+                const mine = Number(side === 'A' ? c.sa : c.sb), theirs = Number(side === 'A' ? c.sb : c.sa);
+                s.pf += mine; s.pa += theirs; s.sg++;
+              }
               const won = w === side;
               if (won) { s.wins++; s.points += n - k; }
               s.streak = won ? Math.max(1, s.streak + 1) : Math.min(-1, s.streak - 1);
@@ -317,8 +321,8 @@
     if (!ids.length) return [];
     const out = [];
     const top = (f) => ids.slice().sort((a, b) => f(st[b]) - f(st[a]))[0];
-    const mvp = top((x) => x.points * 100 + x.wins);
-    out.push({ title: 'MVP', who: [mvp], detail: st[mvp].points + ' court pts, ' + st[mvp].wins + '-' + (st[mvp].games - st[mvp].wins) });
+    const mvp = top((x) => x.pf * 1000 + (x.pf - x.pa) * 10 + x.wins);
+    out.push({ title: 'MVP', who: [mvp], detail: st[mvp].pf + ' pts, ' + st[mvp].wins + '-' + (st[mvp].games - st[mvp].wins) });
     // best streak today
     let bestStreak = { len: 0, id: null };
     const run = {};
@@ -371,6 +375,30 @@
     return { wins: w, losses: l, streak, bestStreak: best, bestPartner: partners[0] || null, partnersPlayed: Object.keys(mates).length };
   }
 
+  // Group rating, DUPR-style: every game moves your number by how your team's share
+  // of the points compares to what the rating gap predicted. Points count even in a loss.
+  // games: [{date, i, a:[n,n], b:[n,n], sa, sb}], seed: {name: startingRating}
+  function groupRatings(games, seed, defaultRating, k) {
+    const K = k || 0.08;
+    const r = {};
+    const get = (n) => (r[n] != null ? r[n] : (r[n] = seed[n] != null ? Number(seed[n]) : defaultRating));
+    const played = {};
+    games.filter((g) => !blank(g.sa) && !blank(g.sb) && Number(g.sa) + Number(g.sb) > 0)
+      .sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : (x.i || 0) - (y.i || 0)))
+      .forEach((g) => {
+        const ra = (get(g.a[0]) + get(g.a[1])) / 2, rb = (get(g.b[0]) + get(g.b[1])) / 2;
+        const expA = 1 / (1 + Math.pow(10, (rb - ra) / 0.6));     // ~0.6 rating gap = 10:1 favourite
+        const share = Number(g.sa) / (Number(g.sa) + Number(g.sb));
+        const actA = 0.5 + (share - 0.5) * 1.6;                    // stretch: 11-0 ~ 0.9, 11-9 ~ 0.54
+        const d = K * (Math.max(0, Math.min(1, actA)) - expA);
+        g.a.forEach((n) => { r[n] = get(n) + d; played[n] = (played[n] || 0) + 1; });
+        g.b.forEach((n) => { r[n] = get(n) - d; played[n] = (played[n] || 0) + 1; });
+      });
+    const out = {};
+    Object.keys(r).forEach((n) => { out[n] = { rating: r[n], games: played[n] || 0 }; });
+    return out;
+  }
+
   // Multi-week leaderboard. days: [{date:'YYYY-MM-DD', stats:{id:{points,wins,games,sits}}}]
   // sinceDate: 'YYYY-MM-DD' or null for all time. sort: 'pct' | 'wins' | 'points'.
   // Win% ranking only lists players with at least minGames games; others follow after.
@@ -379,24 +407,27 @@
     for (const d of days) {
       if (sinceDate && d.date < sinceDate) continue;
       for (const [id, x] of Object.entries(d.stats)) {
-        const t = tot[id] || (tot[id] = { id, points: 0, wins: 0, games: 0, days: 0 });
+        const t = tot[id] || (tot[id] = { id, points: 0, wins: 0, games: 0, days: 0, pf: 0, pa: 0, sg: 0 });
         t.points += x.points; t.wins += x.wins; t.games += x.games; t.days++;
+        t.pf += x.pf || 0; t.pa += x.pa || 0; t.sg += x.sg || 0;
       }
     }
     const list = Object.values(tot);
     list.forEach((t) => {
       t.pct = t.games ? t.wins / t.games : 0;
       t.ppg = t.games ? t.points / t.games : 0;
+      t.pfg = t.sg ? t.pf / t.sg : 0;            // game points won per scored game
+      t.diff = t.sg ? (t.pf - t.pa) / t.sg : 0;  // point differential per scored game
       t.qualified = t.games >= (minGames || 0);
     });
-    const key = { ppg: 'ppg', pct: 'pct', wins: 'wins', points: 'points' }[sort] || 'ppg';
-    const needsMin = key === 'pct' || key === 'ppg';
+    const key = { pfg: 'pfg', diff: 'diff', ppg: 'ppg', pct: 'pct', wins: 'wins', points: 'points' }[sort] || 'pfg';
+    const needsMin = key !== 'wins' && key !== 'points';
     list.sort((a, b) => (needsMin ? b.qualified - a.qualified : 0)
       || b[key] - a[key] || b.pct - a.pct || b.wins - a.wins || b.games - a.games);
     return list;
   }
 
-  const api = { rankings, scoreWarning, dayAwards, playerCard, mixCourts, hash, rng, winnerOf, derive, joinCredit, generateRound, standings, parseList, duprCsv, DUPR_HEADER };
+  const api = { groupRatings, rankings, scoreWarning, dayAwards, playerCard, mixCourts, hash, rng, winnerOf, derive, joinCredit, generateRound, standings, parseList, duprCsv, DUPR_HEADER };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Engine = api;
 })(typeof window !== 'undefined' ? window : globalThis);
