@@ -1,0 +1,6 @@
+# GitHub Pages: publish only the app files
+exclude:
+  - skills
+  - CLAUDE.md
+  - README.md
+  - test.js

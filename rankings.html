@@ -3,15 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0f3d2e">
+<meta name="theme-color" content="#0a0f1c">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
 <title>P4A Rankings</title>
 <link rel="stylesheet" href="style.css">
 <style> body { padding-bottom: 20px; } </style>
 </head>
 <body>
 <header>
-  <h1>P4A Saturday Rankings</h1>
-  <div class="sub" id="sub">Loading…</div>
+  <img class="logo" src="icon.svg" alt="">
+  <div class="grow"><h1>P4A Saturday Rankings</h1><div class="sub" id="sub">Loading…</div></div>
 </header>
 <main id="app"></main>
 <script src="engine.js"></script>
@@ -21,7 +22,7 @@
   const PERIODS = [[28, 'Last 4 weeks'], [56, 'Last 2 months'], [182, 'Last 6 months'], [0, 'All time']];
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const $app = document.getElementById('app');
-  let period = 56, sort = 'pct', days = [], updated = null;
+  let period = 56, sort = 'ppg', days = [], updated = null;
 
   function render() {
     let since = null;
@@ -32,27 +33,28 @@
     const list = Engine.rankings(days, since, sort, minGames);
     const nDays = days.filter((d) => !since || d.date >= since).length;
     const latest = days.slice().sort((a, b) => (a.date < b.date ? 1 : -1))[0];
-    const chip = (on, act, val, label) => `<button class="chip ${on ? 'in' : ''}" data-${act}="${val}">${label}</button>`;
+    const chip = (on, act, val, label) => `<button class="${on ? 'on' : ''}" data-${act}="${val}">${label}</button>`;
+    const needMin = sort === 'pct' || sort === 'ppg';
     const latestRows = latest ? Object.entries(latest.stats).map(([name, x]) => ({ name, ...x }))
       .sort((a, b) => b.points - a.points || b.wins - a.wins) : [];
     $app.innerHTML = `
       <div class="card">
         <h2>Leaderboard</h2>
-        <div class="chips" style="margin-bottom:8px">${PERIODS.map(([v, l]) => chip(period === v, 'period', v, l)).join('')}</div>
-        <div class="chips" style="margin-bottom:10px">${chip(sort === 'pct', 'sort', 'pct', 'Win %')}${chip(sort === 'wins', 'sort', 'wins', 'Most wins')}${chip(sort === 'points', 'sort', 'points', 'Court points')}</div>
+        <div class="seg" style="margin-bottom:8px">${PERIODS.map(([v, l]) => chip(period === v, 'period', v, l)).join('')}</div>
+        <div class="seg" style="margin-bottom:10px">${chip(sort === 'ppg', 'sort', 'ppg', 'Pts/game')}${chip(sort === 'pct', 'sort', 'pct', 'Win %')}${chip(sort === 'wins', 'sort', 'wins', 'Wins')}</div>
         ${list.length ? `<table>
-          <tr><th>#</th><th>Player</th><th>Win%</th><th>W-L</th><th>Pts</th><th>Days</th></tr>
-          ${list.map((x, i) => `<tr style="${sort === 'pct' && !x.qualified ? 'opacity:.5' : ''}"><td>${i < 3 && (sort !== 'pct' || x.qualified) ? ['🥇', '🥈', '🥉'][i] : i + 1}</td><td>${esc(x.id)}</td>
-            <td><b>${Math.round(x.pct * 100)}%</b></td><td>${x.wins}-${x.games - x.wins}</td><td>${x.points}</td><td>${x.days}</td></tr>`).join('')}
+          <tr><th></th><th>Player</th><th>${sort === 'pct' ? 'Win%' : sort === 'wins' ? 'Wins' : 'Pts/G'}</th><th>W-L</th><th>Days</th></tr>
+          ${list.map((x, i) => `<tr class="${needMin && !x.qualified ? 'dim' : ''}"><td class="rk">${i < 3 && (!needMin || x.qualified) ? ['🥇', '🥈', '🥉'][i] : i + 1}</td><td>${esc(x.id)}</td>
+            <td class="hl">${sort === 'pct' ? Math.round(x.pct * 100) + '%' : sort === 'wins' ? x.wins : x.ppg.toFixed(2)}</td><td>${x.wins}-${x.games - x.wins}</td><td>${x.days}</td></tr>`).join('')}
         </table>
-        <p class="muted">${nDays} Saturday${nDays === 1 ? '' : 's'} counted.${sort === 'pct' ? ' Win % needs ' + minGames + '+ games to rank (greyed out = not enough yet).' : ''} Court points: wins on higher courts count more.</p>`
+        <p class="muted small">${nDays} Saturday${nDays === 1 ? '' : 's'}. Pts/game: a win on a higher court is worth more.${needMin ? ' Needs ' + minGames + '+ games to rank.' : ''}</p>`
         : '<p class="muted">No games in this period yet.</p>'}
       </div>
       ${latest ? `<div class="card">
         <h2>Latest: ${esc(latest.date)}</h2>
         <table>
-          <tr><th>#</th><th>Player</th><th>Pts</th><th>W-L</th><th>Sat</th></tr>
-          ${latestRows.map((x, i) => `<tr><td>${i + 1}</td><td>${esc(x.name)}</td><td><b>${x.points}</b></td><td>${x.wins}-${x.games - x.wins}</td><td>${x.sits}</td></tr>`).join('')}
+          <tr><th></th><th>Player</th><th>Pts</th><th>W-L</th><th>Sat</th></tr>
+          ${latestRows.map((x, i) => `<tr><td class="rk">${i + 1}</td><td>${esc(x.name)}</td><td class="hl">${x.points}</td><td>${x.wins}-${x.games - x.wins}</td><td>${x.sits}</td></tr>`).join('')}
         </table>
       </div>` : ''}`;
   }

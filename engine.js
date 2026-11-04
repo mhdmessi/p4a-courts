@@ -46,14 +46,19 @@
         id: p.id, games: 0, wins: 0, points: 0,
         sits: p.joinRound == null ? 0 : (p.joinCredit || 0),
         lastSat: -1, pos: null, lastWon: false,
-        partners: {}, lastPartner: null, lastRoundPlayed: -1,
+        partners: {}, met: {}, lastPartner: null, lastRoundPlayed: -1, streak: 0,
       };
     }
     session.rounds.forEach((round, r) => {
       const n = round.courts.length;
       const playing = new Set();
       round.courts.forEach((c, k) => {
-        [...c.a, ...c.b].forEach((id) => playing.add(id));
+        const four = [...c.a, ...c.b];
+        four.forEach((id) => {
+          playing.add(id);
+          const s = st[id];
+          if (s) four.forEach((o) => { if (o !== id) s.met[o] = (s.met[o] || 0) + 1; });
+        });
         const w = winnerOf(c);
         const teams = { A: c.a, B: c.b };
         for (const side of ['A', 'B']) {
@@ -69,6 +74,7 @@
               s.games++;
               const won = w === side;
               if (won) { s.wins++; s.points += n - k; }
+              s.streak = won ? Math.max(1, s.streak + 1) : Math.min(-1, s.streak - 1);
               s.lastWon = won;
               s.pos = won ? Math.max(0, k - 1) : Math.min(n - 1, k + 1);
             } else {
@@ -104,6 +110,41 @@
     [[0, 3], [1, 2]],
   ];
 
+  // Variety: with steady ratings the same four would share a court all morning.
+  // Swap players between neighboring courts when their ratings are within `gap`
+  // and it cuts down how often the same people have shared a court today.
+  // Nobody moves more than one court from their rating spot.
+  function mixCourts(order, n, st, eff, gap) {
+    if (n < 2 || !gap) return;
+    const home = {};
+    order.forEach((id, i) => { home[id] = Math.floor(i / 4); });
+    const courtOf = (i) => Math.floor(i / 4);
+    const costAt = (k) => {
+      const q = order.slice(k * 4, k * 4 + 4);
+      let c = 0;
+      for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) c += (st[q[i]].met[q[j]] || 0) ** 2;
+      return c;
+    };
+    for (let pass = 0; pass < 3; pass++) {
+      let improved = false;
+      for (let k = 0; k < n - 1; k++) {
+        for (let i = k * 4; i < k * 4 + 4; i++) {
+          for (let j = (k + 1) * 4; j < (k + 1) * 4 + 4; j++) {
+            const x = order[i], y = order[j];
+            if (Math.abs(eff(x) - eff(y)) > gap) continue;
+            if (Math.abs(courtOf(j) - home[x]) > 1 || Math.abs(courtOf(i) - home[y]) > 1) continue;
+            const before = costAt(k) + costAt(k + 1);
+            order[i] = y; order[j] = x;
+            const after = costAt(k) + costAt(k + 1);
+            if (after < before) improved = true;
+            else { order[i] = x; order[j] = y; }
+          }
+        }
+      }
+      if (!improved) break;
+    }
+  }
+
   // Builds the next round. Returns {courts:[{a,b,sa,sb,winner}], sitting:[ids]}.
   // opts.ratings: {id: number} used to seed round 1 (optional).
   function generateRound(session, opts) {
@@ -135,6 +176,7 @@
       const bump = opts.formBump == null ? 0.05 : opts.formBump;
       const eff = (id) => (ratings[id] || 0) + bump * (st[id].wins - (st[id].games - st[id].wins));
       playing.sort((x, y) => eff(y) - eff(x) || tb[x] - tb[y]);
+      mixCourts(playing, n, st, eff, opts.mixGap == null ? 0.3 : opts.mixGap);
     } else {
       // Ladder: winners up, losers down; players keep their spot through a sit-out.
       // New players: by rating on the first round, bottom court after that.
@@ -254,6 +296,81 @@
     return { csv: lines.join('\n') + '\n', rows, skipped };
   }
 
+  // Checks a pickleball score. Returns '' if fine, else a short warning.
+  // timed = round ended on the clock (games may stop before the target).
+  function scoreWarning(sa, sb, target, winBy, timed) {
+    if (blank(sa) || blank(sb)) return '';
+    const a = Number(sa), b = Number(sb);
+    const hi = Math.max(a, b), lo = Math.min(a, b);
+    if (a === b) return 'Tied score: pick a winner';
+    if (timed) return '';
+    if (hi < target) return 'Game is to ' + target;
+    if (hi - lo < winBy) return 'Must win by ' + winBy;
+    if (lo >= target - 1 && hi - lo !== winBy) return 'Past ' + (target - 1) + '-' + (target - 1) + ', game ends at a ' + winBy + '-point lead';
+    return '';
+  }
+
+  // Awards for one day. Returns [{title, who, detail}] using ids.
+  function dayAwards(session) {
+    const st = derive(session);
+    const ids = session.players.filter((p) => p.joinRound != null && st[p.id].games).map((p) => p.id);
+    if (!ids.length) return [];
+    const out = [];
+    const top = (f) => ids.slice().sort((a, b) => f(st[b]) - f(st[a]))[0];
+    const mvp = top((x) => x.points * 100 + x.wins);
+    out.push({ title: 'MVP', who: [mvp], detail: st[mvp].points + ' court pts, ' + st[mvp].wins + '-' + (st[mvp].games - st[mvp].wins) });
+    // best streak today
+    let bestStreak = { len: 0, id: null };
+    const run = {};
+    session.rounds.forEach((round) => round.courts.forEach((c) => {
+      const w = winnerOf(c);
+      if (!w) return;
+      for (const side of ['A', 'B']) for (const id of (side === 'A' ? c.a : c.b)) {
+        run[id] = w === side ? (run[id] || 0) + 1 : 0;
+        if (run[id] > bestStreak.len) bestStreak = { len: run[id], id };
+      }
+    }));
+    if (bestStreak.len >= 3) out.push({ title: 'On fire', who: [bestStreak.id], detail: bestStreak.len + ' wins in a row' });
+    // best duo (2+ games together)
+    const duo = {};
+    session.rounds.forEach((round) => round.courts.forEach((c) => {
+      const w = winnerOf(c);
+      if (!w) return;
+      for (const side of ['A', 'B']) {
+        const t = (side === 'A' ? c.a : c.b).slice().sort();
+        const k = t.join('|');
+        const d = duo[k] || (duo[k] = { t, g: 0, w: 0 });
+        d.g++; if (w === side) d.w++;
+      }
+    }));
+    const duos = Object.values(duo).filter((d) => d.g >= 2).sort((a, b) => b.w / b.g - a.w / a.g || b.w - a.w);
+    if (duos.length && duos[0].w === duos[0].g) out.push({ title: 'Best duo', who: duos[0].t, detail: duos[0].w + '-0 together' });
+    // court 1 king
+    const c1 = {};
+    session.rounds.forEach((round) => { const c = round.courts[0]; const w = c && winnerOf(c); if (w && round.courts.length > 1) (w === 'A' ? c.a : c.b).forEach((id) => { c1[id] = (c1[id] || 0) + 1; }); });
+    const king = Object.entries(c1).sort((a, b) => b[1] - a[1])[0];
+    if (king && king[1] >= 2) out.push({ title: 'Top court king', who: [king[0]], detail: king[1] + ' wins on court 1' });
+    return out;
+  }
+
+  // Player card from game history. games: [{date, a:[name,name], b:[name,name], sa, sb, w:'A'|'B'}]
+  function playerCard(games, name) {
+    let w = 0, l = 0, streak = 0, best = 0;
+    const mates = {};
+    const mine = games.filter((g) => g.a.includes(name) || g.b.includes(name))
+      .sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : (x.i || 0) - (y.i || 0)));
+    for (const g of mine) {
+      const side = g.a.includes(name) ? 'A' : 'B';
+      const won = g.w === side;
+      if (won) { w++; streak = streak > 0 ? streak + 1 : 1; best = Math.max(best, streak); } else { l++; streak = streak < 0 ? streak - 1 : -1; }
+      const mate = (side === 'A' ? g.a : g.b).find((x) => x !== name);
+      const m = mates[mate] || (mates[mate] = { name: mate, g: 0, w: 0 });
+      m.g++; if (won) m.w++;
+    }
+    const partners = Object.values(mates).filter((m) => m.g >= 2).sort((a, b) => b.w / b.g - a.w / a.g || b.g - a.g);
+    return { wins: w, losses: l, streak, bestStreak: best, bestPartner: partners[0] || null, partnersPlayed: Object.keys(mates).length };
+  }
+
   // Multi-week leaderboard. days: [{date:'YYYY-MM-DD', stats:{id:{points,wins,games,sits}}}]
   // sinceDate: 'YYYY-MM-DD' or null for all time. sort: 'pct' | 'wins' | 'points'.
   // Win% ranking only lists players with at least minGames games; others follow after.
@@ -267,14 +384,19 @@
       }
     }
     const list = Object.values(tot);
-    list.forEach((t) => { t.pct = t.games ? t.wins / t.games : 0; t.qualified = t.games >= (minGames || 0); });
-    const key = { pct: 'pct', wins: 'wins', points: 'points' }[sort] || 'pct';
-    list.sort((a, b) => (sort === 'pct' ? b.qualified - a.qualified : 0)
+    list.forEach((t) => {
+      t.pct = t.games ? t.wins / t.games : 0;
+      t.ppg = t.games ? t.points / t.games : 0;
+      t.qualified = t.games >= (minGames || 0);
+    });
+    const key = { ppg: 'ppg', pct: 'pct', wins: 'wins', points: 'points' }[sort] || 'ppg';
+    const needsMin = key === 'pct' || key === 'ppg';
+    list.sort((a, b) => (needsMin ? b.qualified - a.qualified : 0)
       || b[key] - a[key] || b.pct - a.pct || b.wins - a.wins || b.games - a.games);
     return list;
   }
 
-  const api = { rankings, hash, rng, winnerOf, derive, joinCredit, generateRound, standings, parseList, duprCsv, DUPR_HEADER };
+  const api = { rankings, scoreWarning, dayAwards, playerCard, mixCourts, hash, rng, winnerOf, derive, joinCredit, generateRound, standings, parseList, duprCsv, DUPR_HEADER };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Engine = api;
 })(typeof window !== 'undefined' ? window : globalThis);
