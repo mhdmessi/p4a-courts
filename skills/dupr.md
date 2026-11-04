@@ -12,3 +12,12 @@
 - The Pickleheads session page (public, e.g. pickleheads.com/sessions/45559621/1) lists every confirmed player with their DUPR rating. Read it in the owner's Chrome on request (Fridays). Don't script it unattended: Pickleheads blocks bots, and the safety check refused a UA-spoofing curl.
 - Players confirm their own rating on the Sign-up tab (seeing your own rating in DUPR is free).
 - The group rating fills the gaps between refreshes.
+
+## DUPR club sync (current method, 2026-11-04)
+- The owner bought DUPR+ ($20/yr), so the Fajr Paddle Club page (dashboard.dupr.com/dashboard/browse/clubs/7590395515) shows ratings unlocked.
+  - Members tab: all 44 members as "First L.", DUPR ID, rating (2 decimals).
+  - Rankings tab: top 20 with full names and 3-decimal ratings.
+- Zakee Jabbar is the club director; Bilal Majeed is organizer.
+- "Update ratings" = open both tabs in the owner's Chrome (owner logged in), save to `import/dupr-club-YYYY-MM-DD.txt` (local, gitignored), then run `python3 import/dupr_club_sync.py import/dupr-club-YYYY-MM-DD.txt`. Matches on first name + last initial and sets both rating and `dupr` ID.
+- First sync matched 38 + Salahuddin Khan (manual). Unmatched club members (not app players): L., Mohammed B., Mohammed N., Hayyan M., Rizwan (XJZVJX).
+- **It can't run unattended.** It needs the owner's logged-in browser. Never store or ask for the DUPR password, and don't script DUPR's private API.
