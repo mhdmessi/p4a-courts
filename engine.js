@@ -118,8 +118,9 @@
   // Swap players between neighboring courts when their ratings are within `gap`
   // and it cuts down how often the same people have shared a court today.
   // Nobody moves more than one court from their rating spot.
-  function mixCourts(order, n, st, eff, gap) {
+  function mixCourts(order, n, st, eff, gap, locked) {
     if (n < 2 || !gap) return;
+    locked = locked || new Set();
     const home = {};
     order.forEach((id, i) => { home[id] = Math.floor(i / 4); });
     const courtOf = (i) => Math.floor(i / 4);
@@ -135,6 +136,7 @@
         for (let i = k * 4; i < k * 4 + 4; i++) {
           for (let j = (k + 1) * 4; j < (k + 1) * 4 + 4; j++) {
             const x = order[i], y = order[j];
+            if (locked.has(x) || locked.has(y)) continue;   // players back from a sit-out keep their rating spot
             if (Math.abs(eff(x) - eff(y)) > gap) continue;
             if (Math.abs(courtOf(j) - home[x]) > 1 || Math.abs(courtOf(i) - home[y]) > 1) continue;
             const before = costAt(k) + costAt(k + 1);
@@ -187,7 +189,8 @@
       const bump = opts.formBump == null ? 0.05 : opts.formBump;
       const eff = (id) => (ratings[id] || 0) + bump * (st[id].wins - (st[id].games - st[id].wins));
       playing.sort((x, y) => eff(y) - eff(x) || tb[x] - tb[y]);
-      mixCourts(playing, n, st, eff, opts.mixGap == null ? 0.3 : opts.mixGap);
+      const back = new Set(r > 0 ? session.rounds[r - 1].sitting : []);
+      mixCourts(playing, n, st, eff, opts.mixGap == null ? 0.3 : opts.mixGap, back);
     } else {
       // Ladder: winners up, losers down; players keep their spot through a sit-out.
       // New players: by rating on the first round, bottom court after that.
