@@ -164,4 +164,9 @@ console.log('ALL TESTS PASSED');
   assert(Math.abs(g.p.rating - 3.5) < 0.1, 'moves are small');
   console.log('points + group rating: ok', Object.entries(g).map(([n, v]) => n + ' ' + v.rating.toFixed(3)).join(', '));
 }
+{
+  const r = E.parseRoster('Mubeen Shafi\n3.33 DUPR\nBilal Majeed 3.4\nAhmed - 3.64 DUPR\n1. Sahl\nImran K. (3.33)');
+  assert.deepStrictEqual(r, [{ name: 'Mubeen Shafi', rating: 3.33 }, { name: 'Bilal Majeed', rating: 3.4 }, { name: 'Ahmed', rating: 3.64 }, { name: 'Sahl', rating: null }, { name: 'Imran K.', rating: 3.33 }]);
+  console.log('roster paste: ok');
+}
 console.log('ALL TESTS PASSED (incl. rankings)');

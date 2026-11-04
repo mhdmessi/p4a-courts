@@ -261,6 +261,19 @@
     return out;
   }
 
+  // Like parseList, but keeps a rating at the end of a line ("Bilal Majeed 3.4" or "Bilal - 3.40 DUPR").
+  function parseRoster(text) {
+    const out = [];
+    for (const raw of String(text).split(/\r?\n/)) {
+      const alone = raw.trim().match(/^([1-8]\.\d{1,3})\s*(dupr)?$/i);
+      if (alone) { if (out.length && out[out.length - 1].rating == null) out[out.length - 1].rating = Number(alone[1]); continue; }
+      const m = raw.match(/^(.*?)[\s:\-–(]+([1-8]\.\d{1,3})\s*(dupr)?\)?\s*$/i);
+      const names = parseList(m ? m[1] : raw);
+      if (names.length) out.push({ name: names[0], rating: m ? Number(m[2]) : null });
+    }
+    return out;
+  }
+
   function csvCell(v) {
     const s = v == null ? '' : String(v);
     return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
@@ -427,7 +440,7 @@
     return list;
   }
 
-  const api = { groupRatings, rankings, scoreWarning, dayAwards, playerCard, mixCourts, hash, rng, winnerOf, derive, joinCredit, generateRound, standings, parseList, duprCsv, DUPR_HEADER };
+  const api = { parseRoster, groupRatings, rankings, scoreWarning, dayAwards, playerCard, mixCourts, hash, rng, winnerOf, derive, joinCredit, generateRound, standings, parseList, duprCsv, DUPR_HEADER };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Engine = api;
 })(typeof window !== 'undefined' ? window : globalThis);

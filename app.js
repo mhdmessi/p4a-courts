@@ -249,7 +249,7 @@
           <button class="btn sec" data-act="addone">Add</button>
         </div>
         <details style="margin-top:10px"><summary>Paste a list of names</summary>
-          <textarea id="paste" style="margin-top:8px" placeholder="One name per line. Copied poll voters or the old numbered list both work."></textarea>
+          <textarea id="paste" style="margin-top:8px" placeholder="One name per line. Add a rating after a name to set it (Bilal Majeed 3.4). Copied poll voters work too."></textarea>
           <button class="btn sec full" style="margin-top:8px" data-act="paste">Add these players</button>
         </details>
       </div>
@@ -668,9 +668,13 @@
     switch (act) {
       case 'close': sheet = null; break;
       case 'paste': {
-        const names = E.parseList($('paste').value);
-        names.forEach((n) => setHere(addToDay(n), true));
-        save(); toast(names.length ? 'Added ' + names.length + ' players' : 'No names found');
+        const rows = E.parseRoster($('paste').value);
+        let rated = 0;
+        rows.forEach((r) => {
+          setHere(addToDay(r.name), true);
+          if (r.rating != null) { findByName(r.name).rating = r.rating; rated++; }
+        });
+        save(); toast(rows.length ? 'Added ' + rows.length + ' players' + (rated ? ', ' + rated + ' ratings' : '') : 'No names found');
         break;
       }
       case 'addone': {
