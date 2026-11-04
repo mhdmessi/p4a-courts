@@ -3,3 +3,6 @@ roster-ratings.txt
 firebase-debug.log
 .firebase/
 import/*.txt
+node_modules/
+web/dist/
+__pycache__/
