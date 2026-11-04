@@ -31,3 +31,13 @@
 - **Group rating** (`groupRatings`): DUPR-style. It starts at the player's DUPR rating (or the default) and moves each game by K=0.08 × (stretched point share − expected share from the rating gap). Shown on player cards. Players with no DUPR rating are placed on courts by group rating after 6+ scored games.
 - Players need ≥ max(5, 40% of the most games anyone played) to be ranked in Pts/game or Win %.
 - Every day with scored games is saved in `history` (stats plus a game list) for player cards (record, streaks, best partner).
+
+## Play styles (2026-11-04)
+- **Balanced** (`rating`, default), **Ladder** (`ladder`: Claim the Throne, winners up, losers down, partners split, late arrivals start on the bottom court; Mas suggested it), **Social** (`social`: random courts, low repeats). All three share the sit-out rotation (test.js checks the gap is ≤ 1 for each).
+- Timed rounds: a tie when time runs out is allowed; the scorer picks the winner ("whoever wins the next point"). Tied games are left out of the DUPR file.
+
+## Sign-up cap & waitlist
+- `session.cap` defaults to courts × 4 + 2 (4 courts → 18; the owner wants 18 until a 5th court is available). Sign-ups past the cap go to the waitlist in order and move in automatically when someone drops. "Check in all" only checks in confirmed players; the waitlist has its own section.
+
+## Round preview
+- "Start round" builds the round as a preview (`S.preview`). The organizer can tap two players to swap them (courts or sitting) or Reshuffle (`opts.salt`). It's only saved on "Start round N".

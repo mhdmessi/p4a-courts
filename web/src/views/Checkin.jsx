@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, UserPlus, ClipboardPaste, Users, ChevronDown, Check, Clock, UserX } from 'lucide-react';
-import { sess, rosterList, rsvpIds, rsvpOf, dayPlayer, plan, sitText, actions, niceDate, nameOf } from '../lib/store.js';
+import { sess, rosterList, rsvpIds, rsvpOf, dayPlayer, plan, sitText, actions, niceDate, nameOf, confirmedIds, waitlistIds, capOf } from '../lib/store.js';
 import { useApp } from '../lib/hooks.js';
 import { Card, Label, Button, Chip, Seg, Stat, Avatar, cx } from '../ui/kit.jsx';
 import Loading from './Loading.jsx';
@@ -31,7 +31,8 @@ export default function Checkin() {
   const [showOthers, setShowOthers] = useState(false);
   if (!s.id) return <Loading />;
   const p = plan();
-  const signed = rsvpIds('in');
+  const signed = confirmedIds();
+  const waitIds = waitlistIds().filter((id) => !isHere(id));
   const hereIds = s.players.filter((x) => x.present).map((x) => x.id).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
   const waiting = signed.filter((id) => !isHere(id));
   const others = rosterList().filter((x) => !isHere(x.id) && rsvpOf(x.id) !== 'in');
@@ -73,6 +74,13 @@ export default function Checkin() {
 
     </div>
     <div className="space-y-3">
+      {waitIds.length > 0 && (
+        <Card>
+          <Label>Waitlist · {waitIds.length}</Label>
+          <p className="mt-1 text-xs text-ink-mute">If there's a no-show, tap the next person in.</p>
+          <div className="mt-3 space-y-1.5">{waitIds.map((id, i) => <Row key={id} id={id} here={false} sub={`Waitlist #${i + 1}`} />)}</div>
+        </Card>
+      )}
       <Card>
         <Label>Walk-ins</Label>
         <div className="mt-3 flex gap-2">
@@ -97,6 +105,12 @@ export default function Checkin() {
       <Card>
         <Label>Courts available</Label>
         <Seg className="mt-3" value={s.courts} onChange={(v) => actions.setSession('courts', v)} options={[[3, '3'], [4, '4'], [5, '5'], [6, '6'], [7, '7']]} />
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <div><div className="text-sm font-semibold">Sign-up cap</div><div className="text-xs text-ink-mute">Courts × 4 + 2 spares by default. Extra sign-ups go to the waitlist.</div></div>
+          <select value={capOf(s)} onChange={(e) => actions.setCap(Number(e.target.value))} className="!w-24">
+            {[12, 14, 16, 18, 20, 22, 24, 26, 28, 30].map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
         <p className="mt-3 text-sm text-ink-soft">{sitText()}</p>
       </Card>
 

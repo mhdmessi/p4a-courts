@@ -19,3 +19,9 @@
 - Source: the Pickleheads connector (`claude mcp add --scope user`, authenticated 2026-11-04) → `list_competitions` + `get_competition`. Only sessions the owner played are listed (Mubeen organizes; his account would see every session). 13 Saturdays imported, 6/13 to 10/24.
 - The raw data file `import/pickleheads-history.txt` stays local (gitignored: other people's names and records). Re-run: `python3 import/import_pickleheads.py import/pickleheads-history.txt` (idempotent per slug; aliases and guests are handled in the script).
 - The connector also returns each player's DUPR rating per competition, which is a sanctioned way to refresh ratings.
+
+## Organizer lock (2026-11-04)
+- The owner: "we dont want anybody changing DUPR ... only for me". Firebase Auth with the Google provider is enabled; `mhdmessi.github.io` is an authorized domain.
+- `p4a/meta/admins/{uid}`: the first signed-in user claims organizer ("Make me organizer" shows only while there are no admins); after that only admins can add admins.
+- Rules: `players/{id}` writes are admin-only, except creating `name` once (new players can add themselves). Ratings and DUPR IDs are admin-only. `meta/history` and `meta/ratingsSync` are admin-only. Sessions, settings and practice stay open.
+- **Consequence:** the Python import scripts (unauthenticated REST) can no longer write ratings or history. Run rating syncs in the owner's browser while they're signed in as organizer (Firebase SDK in the app page), or have the owner sign in first.

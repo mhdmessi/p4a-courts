@@ -198,7 +198,7 @@
     if (n < 1) throw new Error('Need at least 4 players checked in.');
 
     const st = derive(session);
-    const R = rng(hash(String(session.seed) + ':' + r));
+    const R = rng(hash(String(session.seed) + ':' + r + ':' + (opts.salt || '')));
     const tb = {};
     present.forEach((p) => { tb[p.id] = R(); });
 
@@ -220,7 +220,12 @@
     const playing = present.filter((p) => !sitSet.has(p.id)).map((p) => p.id);
 
     // 2) Court order (court 1 = strongest).
-    if ((opts.mode || 'rating') === 'rating') {
+    const mode = opts.mode || 'rating';
+    if (mode === 'social') {
+      // Social mix: random courts, ignoring ratings, with repeat meetings kept low.
+      playing.sort((x, y) => tb[x] - tb[y]);
+      mixCourts(playing, n, st, () => 0, 99, new Set(), -99, 0);
+    } else if (mode === 'rating') {
       // By DUPR rating, nudged by today's results (formBump per net win).
       const bump = opts.formBump == null ? 0.05 : opts.formBump;
       const eff = (id) => (ratings[id] || 0) + bump * (st[id].wins - (st[id].games - st[id].wins));
@@ -345,6 +350,7 @@
       round.courts.forEach((c, k) => {
         const label = 'Round ' + (r + 1) + ', court ' + (k + 1);
         if (blank(c.sa) || blank(c.sb)) { skipped.push(label + ': no score'); return; }
+        if (Number(c.sa) === Number(c.sb)) { skipped.push(label + ': tied when time ran out (DUPR needs a winner by score)'); return; }
         const ids = [...c.a, ...c.b];
         const missing = ids.filter((id) => !(people[id] && people[id].dupr)).map((id) => (people[id] || {}).name || id);
         if (missing.length) { skipped.push(label + ': no DUPR ID for ' + missing.join(', ')); return; }

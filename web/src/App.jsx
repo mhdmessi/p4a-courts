@@ -52,7 +52,7 @@ export default function App() {
         <div className="flex items-center gap-3">
           <img src="icon.svg" alt="" className="h-9 w-9" />
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 text-[17px] font-black tracking-tight">P4A Courts
+            <div className="flex items-center gap-2 text-[17px] font-black tracking-tight"><span className="grad-text">P4A Courts</span>
               {PRACTICE && <span className="flex items-center gap-1 rounded-full bg-amber/15 px-2 py-0.5 text-[10px] font-bold text-amber"><FlaskConical size={11} /> PRACTICE</span>}
               {!S.online && <span className="flex items-center gap-1 rounded-full bg-rose/15 px-2 py-0.5 text-[10px] font-bold text-rose"><WifiOff size={11} /> OFFLINE</span>}
             </div>
@@ -65,7 +65,7 @@ export default function App() {
               const on = key === tab[0];
               return (
                 <button key={key} onClick={() => actions.setTab(key)} className={cx('relative flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-bold transition-colors', on ? 'text-ball' : 'text-ink-soft hover:text-ink')}>
-                  {on && <motion.span layoutId="toppill" className="absolute inset-0 rounded-xl" style={{ background: 'rgba(216,245,74,.12)' }} transition={{ type: 'spring', stiffness: 500, damping: 40 }} />}
+                  {on && <motion.span layoutId="toppill" className="absolute inset-0 rounded-xl" style={{ background: 'rgba(167,139,250,.16)' }} transition={{ type: 'spring', stiffness: 500, damping: 40 }} />}
                   <Icon size={18} className="relative" /><span className="relative">{label}</span>
                 </button>
               );
@@ -89,7 +89,7 @@ export default function App() {
             const on = key === tab[0];
             return (
               <button key={key} onClick={() => actions.setTab(key)} className="relative flex flex-1 flex-col items-center gap-0.5 rounded-2xl py-2">
-                {on && <motion.span layoutId="navpill" className="absolute inset-x-2 inset-y-0.5 rounded-2xl bg-ball/12" style={{ background: 'rgba(216,245,74,.12)' }} transition={{ type: 'spring', stiffness: 500, damping: 40 }} />}
+                {on && <motion.span layoutId="navpill" className="absolute inset-x-2 inset-y-0.5 rounded-2xl bg-ball/12" style={{ background: 'rgba(167,139,250,.16)' }} transition={{ type: 'spring', stiffness: 500, damping: 40 }} />}
                 <Icon size={22} strokeWidth={on ? 2.6 : 2} className={cx('relative', on ? 'text-ball' : 'text-ink-mute')} />
                 <span className={cx('relative text-[11px] font-bold', on ? 'text-ball' : 'text-ink-mute')}>{label}</span>
               </button>

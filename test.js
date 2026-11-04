@@ -192,3 +192,15 @@ console.log('ALL TESTS PASSED (incl. rankings)');
   console.log('zone rule: max court move between rounds = ' + worst);
 }
 console.log('ALL TESTS PASSED (incl. zones)');
+
+// Play styles keep sit-outs equal
+for (const mode of ['rating', 'ladder', 'social']) {
+  const R = E.rng(77), ratings = {}, players = [];
+  for (let i = 0; i < 18; i++) { players.push({ id: 'p' + i, present: true, joinRound: 0, joinCredit: 0 }); ratings['p' + i] = 2.8 + R() * 1.4; }
+  const s = { seed: 5, courts: 4, players, rounds: [], date: 'x' };
+  for (let r = 0; r < 8; r++) { const rd = E.generateRound(s, { ratings, mode }); rd.courts.forEach((c) => { const a = R() < 0.5; c.sa = a ? 11 : 4; c.sb = a ? 4 : 11; }); s.rounds.push(rd); }
+  const st = E.derive(s); const v = players.map((p) => st[p.id].sits);
+  assert(Math.max(...v) - Math.min(...v) <= 1, mode + ' sit gap');
+  console.log(mode + ' mode: sit gap ' + (Math.max(...v) - Math.min(...v)));
+}
+console.log('ALL TESTS PASSED (incl. play styles)');

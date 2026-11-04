@@ -6,8 +6,17 @@
       ".read": true,
       "players": {
         "$pid": {
-          ".write": true,
-          ".validate": "!newData.exists() || (newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('name').val().length < 60)"
+          ".write": "auth != null && root.child('p4a/meta/admins').child(auth.uid).exists()",
+          "name": {
+            ".write": "!data.exists()",
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 60"
+          },
+          "rating": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 8"
+          },
+          "dupr": {
+            ".validate": "newData.isString() && newData.val().length < 20"
+          }
         }
       },
       "sessions": {
@@ -17,7 +26,18 @@
         }
       },
       "meta": {
-        ".write": true
+        "settings": {
+          ".write": true
+        },
+        "admins": {
+          ".write": "auth != null && (!data.exists() || data.child(auth.uid).exists())"
+        },
+        "history": {
+          ".write": "auth != null && root.child('p4a/meta/admins').child(auth.uid).exists()"
+        },
+        "ratingsSync": {
+          ".write": "auth != null && root.child('p4a/meta/admins').child(auth.uid).exists()"
+        }
       },
       "practice": {
         ".write": true

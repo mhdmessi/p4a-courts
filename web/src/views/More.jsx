@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Plus, Trash2, ChevronDown, Wifi, WifiOff, CalendarPlus } from 'lucide-react';
-import { S, sess, rosterList, hasRating, sessionList, nextSaturday, niceDate, createSession, openSession, actions, toast, blank } from '../lib/store.js';
+import { Plus, Trash2, ChevronDown, Wifi, WifiOff, CalendarPlus, ShieldCheck, LogIn, LogOut, Lock } from 'lucide-react';
+import { S, sess, rosterList, hasRating, sessionList, nextSaturday, niceDate, createSession, openSession, actions, toast, blank, isAdmin, noAdminsYet, PRACTICE } from '../lib/store.js';
 import { useApp } from '../lib/hooks.js';
 import { Card, Label, Button, Seg, Pill, cx } from '../ui/kit.jsx';
 
@@ -11,28 +11,29 @@ function Players() {
   const [armed, setArmed] = useState(null);
   const shown = list.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()));
   const missR = list.filter((p) => !hasRating(p.id)).length, missD = list.filter((p) => !p.dupr).length;
+  const can = isAdmin() || PRACTICE;
   return (
     <Card>
       <div className="flex items-center justify-between"><Label>Players · {list.length}</Label>
         <div className="flex gap-1">{missR > 0 && <Pill tone="amber">{missR} no rating</Pill>}{missD > 0 && <Pill tone="amber">{missD} no DUPR ID</Pill>}</div></div>
-      <p className="mt-1 text-xs text-ink-mute">Ratings set the courts (court 1 = highest). Changes save for everyone when you leave a field.</p>
+      <p className="mt-1 text-xs text-ink-mute">{can ? 'Ratings set the courts (court 1 = highest). Changes save for everyone when you leave a field.' : <span className="flex items-center gap-1"><Lock size={12} />Only the organizer can edit names, ratings and DUPR IDs.</span>}</p>
       <input className="mt-3" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search players" />
       <div className="mt-3 grid grid-cols-[1fr_72px_96px_28px] gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-ink-mute"><span>Name</span><span>Rating</span><span>DUPR ID</span><span /></div>
       <div className="mt-1 space-y-1.5">
         {shown.map((p) => (
           <div key={p.id} className="grid grid-cols-[1fr_72px_96px_28px] items-center gap-1.5">
-            <input defaultValue={p.name} className="!py-2 text-[15px]" onBlur={(e) => e.target.value !== p.name && actions.savePlayer(p.id, 'name', e.target.value)} />
-            <input defaultValue={blank(p.rating) ? '' : p.rating} inputMode="decimal" placeholder="3.50" className="!py-2 text-[15px] tnum" onBlur={(e) => String(e.target.value) !== String(p.rating ?? '') && actions.savePlayer(p.id, 'rating', e.target.value)} />
-            <input defaultValue={p.dupr || ''} placeholder="ID" className="!py-2 text-[15px]" onBlur={(e) => e.target.value !== (p.dupr || '') && actions.savePlayer(p.id, 'dupr', e.target.value)} />
-            <button onClick={() => (armed === p.id ? (actions.deletePlayer(p.id), setArmed(null)) : setArmed(p.id))} className={cx('grid h-8 w-7 place-items-center rounded-lg', armed === p.id ? 'bg-rose text-white' : 'text-ink-mute')}><Trash2 size={15} /></button>
+            <input disabled={!can} defaultValue={p.name} className="!py-2 text-[15px] disabled:opacity-80" onBlur={(e) => e.target.value !== p.name && actions.savePlayer(p.id, 'name', e.target.value)} />
+            <input disabled={!can} defaultValue={blank(p.rating) ? '' : p.rating} inputMode="decimal" placeholder="3.50" className="!py-2 text-[15px] tnum disabled:opacity-80" onBlur={(e) => String(e.target.value) !== String(p.rating ?? '') && actions.savePlayer(p.id, 'rating', e.target.value)} />
+            <input disabled={!can} defaultValue={p.dupr || ''} placeholder="ID" className="!py-2 text-[15px] disabled:opacity-80" onBlur={(e) => e.target.value !== (p.dupr || '') && actions.savePlayer(p.id, 'dupr', e.target.value)} />
+            {!can ? <span /> : <button onClick={() => (armed === p.id ? (actions.deletePlayer(p.id), setArmed(null)) : setArmed(p.id))} className={cx('grid h-8 w-7 place-items-center rounded-lg', armed === p.id ? 'bg-rose text-white' : 'text-ink-mute')}><Trash2 size={15} /></button>}
           </div>
         ))}
       </div>
-      <details className="group mt-4">
+      {can && <details className="group mt-4">
         <summary className="flex cursor-pointer list-none items-center gap-1 text-sm font-semibold text-ink-mute"><Plus size={14} />Paste names with ratings<ChevronDown size={14} className="transition group-open:rotate-180" /></summary>
         <textarea value={paste} onChange={(e) => setPaste(e.target.value)} className="mt-2 min-h-[100px]" placeholder={'Bilal Majeed 3.4\nAhmed Irfan 3.64'} />
         <Button variant="secondary" className="mt-2 w-full" onClick={() => { actions.pasteRoster(paste); setPaste(''); }}>Add or update players</Button>
-      </details>
+      </details>}
     </Card>
   );
 }
@@ -74,6 +75,24 @@ function Settings() {
   const Row = ({ label, children, hint }) => <div className="mb-4 last:mb-0"><div className="mb-1.5 text-[13px] font-semibold text-ink-soft">{label}</div>{children}{hint && <div className="mt-1.5 text-xs text-ink-mute">{hint}</div>}</div>;
   return (
     <>
+      <Card className="ring-grad">
+        <Label className="mb-2">Organizer</Label>
+        {S.user ? (
+          <div className="flex items-center gap-3">
+            <ShieldCheck className={isAdmin() ? 'text-mint' : 'text-ink-mute'} />
+            <div className="flex-1 text-sm"><div className="font-bold">{S.user.name || S.user.email}</div>
+              <div className="text-ink-mute">{isAdmin() ? 'Organizer: you can edit ratings, DUPR IDs and players.' : noAdminsYet() ? 'No organizer yet.' : 'Signed in (not the organizer).'}</div></div>
+            {noAdminsYet() && <Button size="sm" onClick={actions.claimAdmin}>Make me organizer</Button>}
+            <Button variant="ghost" size="sm" onClick={actions.signOut}><LogOut size={15} /></Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <Lock className="text-ink-mute" />
+            <div className="flex-1 text-sm text-ink-soft">Ratings and DUPR IDs are locked. The organizer signs in with Google to edit them.</div>
+            <Button size="sm" onClick={actions.signIn}><LogIn size={15} />Sign in</Button>
+          </div>
+        )}
+      </Card>
       <p className="px-1 text-xs text-ink-mute">Settings are shared by the whole group.</p>
       <Card>
         <Label className="mb-3">Games</Label>
@@ -89,7 +108,9 @@ function Settings() {
       </Card>
       <Card>
         <Label className="mb-3">Courts</Label>
-        <Row label="Placement"><Seg value={st.mode} onChange={set('mode')} options={[['rating', 'By rating'], ['ladder', 'Up & down ladder']]} /></Row>
+        <Row label="Play style" hint={{ rating: 'Balanced: courts set by rating, partners rotate, winners nudge up and losers down one court at most.', ladder: 'Ladder (Claim the Throne): winners move up a court, losers move down, partners split every game. Late arrivals start on the bottom court.', social: 'Social: random courts and partners, ignoring ratings, with repeat meetings kept low.' }[st.mode]}>
+          <Seg value={st.mode} onChange={set('mode')} options={[['rating', 'Balanced'], ['ladder', 'Ladder'], ['social', 'Social']]} /></Row>
+        <p className="-mt-2 mb-4 text-xs text-mint">Every style uses the same fair sit-out rotation: nobody sits twice until everyone has sat once.</p>
         <Row label="Court variety" hint="Mixes similar-rated players across neighboring courts. Nobody moves more than one court from where they just played; winners lean up, losers lean down.">
           <Seg value={st.mixGap} onChange={set('mixGap')} options={[[0, 'Off'], [0.15, 'Light'], [0.3, 'Normal'], [0.45, 'More']]} /></Row>
         <Row label="Protect winners from sitting" hint="Sit-outs stay equal (nobody sits twice until everyone has sat once, never twice in a row). Among those due to sit, losers sit first.">

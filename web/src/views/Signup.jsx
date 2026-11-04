@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, Share2, Copy, MapPin, Clock, UserPlus, ChevronDown } from 'lucide-react';
-import { S, sess, rosterList, rsvpIds, rsvpOf, person, nameOf, niceDate, sessionList, todayStr, actions, openSession, copy, shareLink, blank } from '../lib/store.js';
+import { S, sess, rosterList, rsvpIds, rsvpOf, person, nameOf, niceDate, sessionList, todayStr, actions, openSession, copy, shareLink, blank, capOf, confirmedIds, waitlistIds, isAdmin } from '../lib/store.js';
 import { useApp } from '../lib/hooks.js';
 import { Card, Label, Button, Chip, Avatar, Pill, cx } from '../ui/kit.jsx';
 import Loading from './Loading.jsx';
@@ -12,8 +12,9 @@ export default function Signup() {
   const [newName, setNewName] = useState('');
   const [showAll, setShowAll] = useState(false);
   if (!s.id) return <Loading />;
-  const ins = rsvpIds('in'), outs = rsvpIds('out');
-  const answered = new Set([...ins, ...outs]);
+  const allIn = rsvpIds('in'), outs = rsvpIds('out');
+  const ins = confirmedIds(), wait = waitlistIds(), cap = capOf(s), full = allIn.length >= cap;
+  const answered = new Set([...allIn, ...outs]);
   const noReply = rosterList().filter((p) => !answered.has(p.id));
   const me = S.me && S.roster[S.me] ? S.me : null;
   const mine = me ? rsvpOf(me) : null;
@@ -50,7 +51,7 @@ export default function Signup() {
             )}
           </div>
           <div className="mt-4 grid grid-cols-3 gap-2">
-            {[[ins.length, 'In'], [outs.length, 'Out'], [courts, courts === 1 ? 'Court' : 'Courts']].map(([v, l]) => (
+            {[[`${ins.length}/${cap}`, full ? 'Full' : 'In'], [wait.length, 'Waitlist'], [courts, courts === 1 ? 'Court' : 'Courts']].map(([v, l]) => (
               <div key={l} className="rounded-2xl bg-black/25 px-3 py-2 backdrop-blur">
                 <motion.div key={v} initial={{ scale: 1.25 }} animate={{ scale: 1 }} className="text-2xl font-black tnum">{v}</motion.div>
                 <div className="text-[11px] font-bold uppercase tracking-wider text-white/70">{l}</div>
@@ -80,14 +81,14 @@ export default function Signup() {
               <Button variant="secondary" onClick={() => { actions.newMe(newName); setNewName(''); }}><UserPlus size={18} /></Button>
             </div>
           </>
-        ) : <MeCard me={me} mine={mine} />}
+        ) : <MeCard me={me} mine={mine} waitPos={wait.indexOf(me) + 1} full={full} />}
       </Card>
 
     </div>
     <div className="space-y-3">
       {/* Lists */}
       <Card>
-        <div className="flex items-center justify-between"><Label>In · {ins.length}</Label>{ins.length > 0 && <Pill tone="ball">{courts} court{courts === 1 ? '' : 's'}</Pill>}</div>
+        <div className="flex items-center justify-between"><Label>In · {ins.length} of {cap}</Label>{ins.length > 0 && <Pill tone="ball">{courts} court{courts === 1 ? '' : 's'}</Pill>}</div>
         <div className="mt-3 space-y-1.5">
           <AnimatePresence initial={false}>
             {ins.map((id, i) => (
@@ -102,6 +103,14 @@ export default function Signup() {
           </AnimatePresence>
           {!ins.length && <div className="text-sm text-ink-mute">Nobody yet. Be the first.</div>}
         </div>
+        {wait.length > 0 && (<>
+          <Label className="mt-5">Waitlist · {wait.length}</Label>
+          <p className="mt-1 text-xs text-ink-mute">They move in automatically, in order, when someone drops.</p>
+          <div className="mt-2 space-y-1">{wait.map((id, i) => (
+            <div key={id} className={cx('flex items-center gap-3 rounded-2xl px-2 py-1.5', id === me && 'bg-ball/10')}>
+              <span className="w-5 text-right text-xs font-bold text-amber tnum">#{i + 1}</span><Avatar name={nameOf(id)} size={26} /><span className="font-semibold text-ink-soft">{nameOf(id)}</span>
+            </div>))}</div>
+        </>)}
         {outs.length > 0 && (<>
           <Label className="mt-5">Can't make it · {outs.length}</Label>
           <div className="mt-2 flex flex-wrap gap-1.5">{outs.map((id) => <span key={id} className="rounded-full bg-night-800 px-3 py-1 text-sm text-ink-soft">{nameOf(id)}</span>)}</div>
@@ -123,7 +132,7 @@ export default function Signup() {
   );
 }
 
-function MeCard({ me, mine }) {
+function MeCard({ me, mine, waitPos, full }) {
   const p = person(me);
   const [r, setR] = useState(blank(p.rating) ? '' : String(p.rating));
   const [d, setD] = useState(p.dupr || '');
@@ -133,28 +142,42 @@ function MeCard({ me, mine }) {
         <Avatar name={p.name} size={44} />
         <div className="flex-1">
           <div className="text-lg font-extrabold">Hi {p.name.split(' ')[0]} 👋</div>
-          <div className="text-sm text-ink-soft">{mine === 'in' ? "You're in. See you on the court!" : mine === 'out' ? "Marked as can't make it." : 'Are you playing?'}</div>
+          <div className="text-sm text-ink-soft">{mine === 'in' ? (waitPos ? `You're #${waitPos} on the waitlist.` : "You're in. See you on the court!") : mine === 'out' ? "Marked as can't make it." : full ? 'Session is full. Join the waitlist?' : 'Are you playing?'}</div>
         </div>
         <button onClick={actions.notMe} className="text-sm font-semibold text-ink-mute">Not you?</button>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <motion.button whileTap={{ scale: 0.96 }} onClick={() => actions.rsvp('in')}
-          className={cx('flex h-16 items-center justify-center gap-2 rounded-2xl text-lg font-black transition-colors', mine === 'in' ? 'bg-ball text-ball-ink shadow-glow' : 'bg-night-700 text-ink border border-white/10')}>
-          <Check size={22} strokeWidth={3} />I'm in
-        </motion.button>
-        <motion.button whileTap={{ scale: 0.96 }} onClick={() => actions.rsvp('out')}
-          className={cx('flex h-16 items-center justify-center gap-2 rounded-2xl text-lg font-black transition-colors', mine === 'out' ? 'bg-rose text-white' : 'bg-night-700 text-ink border border-white/10')}>
-          <X size={22} strokeWidth={3} />Can't
-        </motion.button>
+      {mine === 'in' ? (
+        <div className="mt-4 space-y-2">
+          <div className={cx('flex h-14 items-center justify-center gap-2 rounded-2xl text-lg font-black', waitPos ? 'border border-amber/40 bg-amber/10 text-amber' : 'grad text-white shadow-glow')}>
+            <Check size={22} strokeWidth={3} />{waitPos ? `Waitlist #${waitPos}` : "You're in"}
+          </div>
+          <motion.button whileTap={{ scale: 0.97 }} onClick={() => actions.rsvp('out')} className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-rose/40 bg-rose/10 font-bold text-rose">
+            <X size={18} strokeWidth={3} />Can't make it anymore
+          </motion.button>
+        </div>
+      ) : (
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <motion.button whileTap={{ scale: 0.96 }} onClick={() => actions.rsvp('in')}
+            className="grad flex h-16 items-center justify-center gap-2 rounded-2xl text-lg font-black text-white shadow-glow">
+            <Check size={22} strokeWidth={3} />{full ? 'Join waitlist' : "I'm in"}
+          </motion.button>
+          <motion.button whileTap={{ scale: 0.96 }} onClick={() => actions.rsvp('out')}
+            className={cx('flex h-16 items-center justify-center gap-2 rounded-2xl text-lg font-black transition-colors', mine === 'out' ? 'bg-rose text-white' : 'border border-white/10 bg-white/[.05] text-ink')}>
+            <X size={22} strokeWidth={3} />Can't
+          </motion.button>
+        </div>
+      )}
+      <div className="mt-3 flex items-center justify-between rounded-2xl bg-white/[.04] px-3 py-2 text-sm">
+        <span className="text-ink-mute">DUPR rating</span>
+        <span className="font-bold tnum">{blank(p.rating) ? 'Not set yet' : Number(p.rating).toFixed(2)}{p.dupr ? <span className="ml-2 font-normal text-ink-mute">{p.dupr}</span> : null}</span>
       </div>
-      <details className="mt-3 group">
-        <summary className="cursor-pointer list-none text-sm font-semibold text-ink-mute">DUPR {blank(p.rating) ? '(not set)' : Number(p.rating).toFixed(2)} · edit <ChevronDown size={14} className="inline transition group-open:rotate-180" /></summary>
+      {isAdmin() && (
         <div className="mt-2 flex gap-2">
           <input value={r} onChange={(e) => setR(e.target.value)} inputMode="decimal" placeholder="Rating" />
           <input value={d} onChange={(e) => setD(e.target.value)} placeholder="DUPR ID" />
           <Button variant="secondary" onClick={() => actions.saveMe(r, d)}>Save</Button>
         </div>
-      </details>
+      )}
     </>
   );
 }

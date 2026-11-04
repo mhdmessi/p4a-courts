@@ -12,7 +12,7 @@ export function CourtCard({ round, r, k, compact }) {
   const n = round.courts.length;
   const top = k === 0 && n > 1;
   const avg = [...c.a, ...c.b].reduce((t, id) => t + rating(id), 0) / 4;
-  const warn = E.scoreWarning(c.sa, c.sb, Number(S.settings.target), Number(S.settings.winBy), round.timed);
+  const warn = w && round.timed ? '' : E.scoreWarning(c.sa, c.sb, Number(S.settings.target), Number(S.settings.winBy), round.timed);
   const mine = [...c.a, ...c.b].includes(S.me);
   const Side = ({ code, ids, pts }) => {
     const won = w === code, lost = w && !won;

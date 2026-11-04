@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 export const cx = (...a) => a.filter(Boolean).join(' ');
 
 export function Card({ className, children, ...p }) {
-  return <div className={cx('rounded-3xl border border-white/[.06] bg-night-850/80 p-4 shadow-card', className)} {...p}>{children}</div>;
+  return <div className={cx('rounded-3xl border border-white/[.07] bg-white/[.035] p-4 shadow-card backdrop-blur-xl', className)} {...p}>{children}</div>;
 }
 
 export function Label({ children, className }) {
@@ -11,10 +11,10 @@ export function Label({ children, className }) {
 }
 
 const BTN = {
-  primary: 'bg-ball text-ball-ink shadow-glow hover:bg-ball-soft',
+  primary: 'grad text-white shadow-glow hover:brightness-110',
   secondary: 'bg-night-700 text-ink border border-white/[.07] hover:bg-night-600',
   ghost: 'bg-transparent text-ink-soft border border-white/10 hover:bg-white/5',
-  teal: 'bg-teal text-[#032a22]',
+  teal: 'bg-mint text-[#03201b] shadow-[0_10px_30px_-10px_rgba(94,234,212,.6)]',
   danger: 'bg-rose text-white',
 };
 export function Button({ variant = 'primary', size = 'md', className, children, disabled, ...p }) {
@@ -34,8 +34,8 @@ export function Seg({ options, value, onChange, className }) {
       {options.map(([v, l]) => {
         const on = String(v) === String(value);
         return (
-          <button key={String(v)} onClick={() => onChange(v)} className={cx('relative z-10 flex-1 rounded-xl py-2 text-sm font-bold transition-colors', on ? 'text-ball-ink' : 'text-ink-soft')}>
-            {on && <motion.span layoutId={'seg-' + options.map((o) => o[0]).join('')} className="absolute inset-0 -z-10 rounded-xl bg-ball" transition={{ type: 'spring', stiffness: 500, damping: 38 }} />}
+          <button key={String(v)} onClick={() => onChange(v)} className={cx('relative z-10 flex-1 rounded-xl py-2 text-sm font-bold transition-colors', on ? 'text-white' : 'text-ink-soft hover:text-ink')}>
+            {on && <motion.span layoutId={'seg-' + options.map((o) => o[0]).join('')} className="grad absolute inset-0 -z-10 rounded-xl shadow-glow" transition={{ type: 'spring', stiffness: 500, damping: 38 }} />}
             {l}
           </button>
         );
@@ -48,7 +48,7 @@ export function Chip({ on, children, className, ...p }) {
   return (
     <motion.button layout whileTap={{ scale: 0.94 }}
       className={cx('rounded-full border px-3.5 py-2 text-[15px] font-semibold transition-colors',
-        on ? 'border-ball/70 bg-ball/15 text-ball' : 'border-white/10 bg-night-800 text-ink-soft hover:text-ink', className)} {...p}>
+        on ? 'border-ball/60 bg-ball/15 text-ball-soft' : 'border-white/10 bg-white/[.04] text-ink-soft hover:text-ink', className)} {...p}>
       {children}
     </motion.button>
   );
@@ -93,7 +93,7 @@ export function Empty({ icon, children }) {
 
 export function Avatar({ name, size = 40, tone }) {
   const initials = String(name || '?').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-  const hues = ['#d8f54a', '#37d3b4', '#7aa7ff', '#ffb547', '#ff8fb1', '#b69cff'];
+  const hues = ['#c4b5fd', '#5eead4', '#93c5fd', '#fcd34d', '#f9a8d4', '#a7f3d0'];
   const h = hues[[...String(name)].reduce((a, c) => a + c.charCodeAt(0), 0) % hues.length];
   return <div style={{ width: size, height: size, background: tone || h, fontSize: size * 0.38 }} className="grid shrink-0 place-items-center rounded-full font-black text-night-950">{initials}</div>;
 }

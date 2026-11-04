@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Trophy, Crown, Armchair, Flame } from 'lucide-react';
+import { X, Trophy, Crown, Armchair, Flame, Shuffle, Play, ArrowLeftRight } from 'lucide-react';
 import { S, E, sess, curRound, nameOf, firstName, person, hasRating, rating, rankData, allGames, groupRatingMap, actions, setUI, niceDate, blank } from '../lib/store.js';
 import { useApp, useTimer } from '../lib/hooks.js';
 import { Sheet, Button, Avatar, Stat, cx } from '../ui/kit.jsx';
@@ -20,7 +20,8 @@ function ScoreSheet({ r, k, side: initSide }) {
     let x = a.replace(/\D/g, ''), y = b.replace(/\D/g, '');
     if (x === '' && side === 'A') x = String(target);
     if (y === '' && side === 'B') y = String(target);
-    if (x === '' || y === '' || +x === +y) return;
+    if (x === '' || y === '') return;
+    if (+x === +y) { if (round.timed) actions.setScore(r, k, +x, +y, side); return; }
     actions.setScore(r, k, +x, +y, +x > +y ? 'A' : 'B');
   };
   return (
@@ -49,7 +50,7 @@ function ScoreSheet({ r, k, side: initSide }) {
                 className="h-14 rounded-2xl border border-white/10 bg-night-800 text-2xl font-black tnum active:bg-ball active:text-ball-ink">{i}</motion.button>
             ))}
           </div>
-          <p className="mb-2 mt-4 text-xs text-ink-mute">{round.timed ? 'Time ran out, close game or other score:' : 'Close game or other score:'}</p>
+          <p className="mb-2 mt-4 text-xs text-ink-mute">{round.timed ? 'Time ran out? Enter the score as it stands. Tied: whoever won the next point is the winner above.' : 'Close game or other score:'}</p>
           <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
             <label className="text-center text-xs text-ink-mute">{team(c.a)}<input value={a} onChange={(e) => setA(e.target.value)} inputMode="numeric" placeholder={side === 'A' ? String(target) : ''} className="mt-1 !text-center !text-2xl !font-black" /></label>
             <span className="pb-3 text-ink-mute">–</span>
@@ -91,6 +92,41 @@ function PlayerSheet({ id }) {
         <Row k="Current streak" v={card.streak > 0 ? <span className="text-[#ff8a3d]"><Flame size={14} className="inline" /> {card.streak} W</span> : card.streak < 0 ? -card.streak + ' L' : '–'} />
         <Row k="Best partner" v={card.bestPartner ? `${card.bestPartner.name.split(' ')[0]} (${card.bestPartner.w}-${card.bestPartner.g - card.bestPartner.w})` : '–'} />
       </div>
+    </Sheet>
+  );
+}
+
+function PreviewSheet() {
+  const pv = S.preview;
+  if (!pv) return null;
+  const rd = pv.round, n = rd.courts.length;
+  const P = ({ id }) => (
+    <motion.button layout whileTap={{ scale: 0.95 }} onClick={() => actions.pickPreview(id)}
+      className={cx('truncate rounded-xl px-2.5 py-1.5 text-left text-[15px] font-bold transition-colors', pv.pick === id ? 'bg-amber text-[#2a1700]' : pv.pick ? 'bg-white/10 text-white hover:bg-white/20' : 'text-white')}>
+      {firstName(id)}{hasRating(id) && <span className="ml-1 text-[11px] font-semibold opacity-60 tnum">{rating(id).toFixed(2)}</span>}
+    </motion.button>
+  );
+  return (
+    <Sheet open onClose={() => { S.preview = null; setUI({ sheet: null }); }} title={`Round ${sess().rounds.length + 1} preview`}
+      right={<Button variant="secondary" size="sm" onClick={actions.reshufflePreview}><Shuffle size={15} />Reshuffle</Button>}>
+      <p className="mb-3 flex items-center gap-2 text-sm text-ink-soft"><ArrowLeftRight size={15} className="text-amber" />{pv.pick ? `Now tap who to swap with ${firstName(pv.pick)}.` : 'Tap two players to swap them. Nothing is final until you start.'}</p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {rd.courts.map((c, k) => (
+          <div key={k} className="court-surface rounded-2xl border border-white/40 p-2.5">
+            <div className="mb-1 flex items-center gap-1 text-[10.5px] font-black uppercase tracking-wider text-white/80">{k === 0 && n > 1 && <Crown size={11} />}Court {k + 1}</div>
+            <div className="flex flex-wrap gap-1">{c.a.map((id) => <P key={id} id={id} />)}</div>
+            <div className="my-1 border-t-2 border-dashed border-white/60" />
+            <div className="flex flex-wrap gap-1">{c.b.map((id) => <P key={id} id={id} />)}</div>
+          </div>
+        ))}
+      </div>
+      {rd.sitting.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-1 rounded-2xl border border-amber/30 bg-amber/10 p-2.5">
+          <Armchair size={16} className="mr-1 text-amber" /><span className="mr-1 text-sm text-amber">Sitting:</span>
+          {rd.sitting.map((id) => <P key={id} id={id} />)}
+        </div>
+      )}
+      <Button size="lg" className="mt-4 w-full" onClick={actions.commitPreview}><Play size={20} fill="currentColor" />Start round {sess().rounds.length + 1}</Button>
     </Sheet>
   );
 }
@@ -140,6 +176,7 @@ export default function Overlays() {
       {sh && sh.type === 'score' && <ScoreSheet key={sh.r + '-' + sh.k} r={sh.r} k={sh.k} side={sh.side} />}
       {sh && sh.type === 'card' && <PlayerSheet id={sh.id} />}
       {sh && sh.type === 'timer' && <TimerSheet />}
+      {sh && sh.type === 'preview' && <PreviewSheet />}
       <AnimatePresence>{S.ui.display && <Display />}</AnimatePresence>
       <AnimatePresence>
         {S.ui.toast && (
