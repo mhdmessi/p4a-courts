@@ -15,7 +15,9 @@
   <div class="grow"><h1>P4A Saturday Rankings</h1><div class="sub" id="sub">Loading…</div></div>
 </header>
 <main id="app"></main>
+<script src="firebase-config.js"></script>
 <script src="engine.js"></script>
+<script src="model.js"></script>
 <script>
 (function () {
   'use strict';
@@ -70,15 +72,20 @@
     render();
   });
 
-  fetch('data/results.json?t=' + Date.now(), { cache: 'no-store' })
-    .then((r) => (r.ok ? r.json() : { days: {} }))
-    .catch(() => ({ days: {} }))
+  // Live data straight from the group database (read-only).
+  fetch(window.P4A_FIREBASE.databaseURL + '/p4a.json', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : {}))
+    .catch(() => ({}))
     .then((data) => {
-      days = Object.values(data.days || {});
-      updated = data.updated;
-      document.getElementById('sub').textContent = updated
-        ? 'Updated ' + new Date(updated).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-        : 'No results published yet';
+      data = data || {};
+      const names = data.players || {};
+      days = Object.entries(data.sessions || {})
+        .map(([id, raw]) => Model.dayFrom(Model.toSession(id, raw)))
+        .filter(Boolean)
+        .map((d) => Model.dayByName(d, names));
+      document.getElementById('sub').textContent = days.length
+        ? 'Live · ' + days.length + ' session' + (days.length === 1 ? '' : 's')
+        : 'No games yet';
       render();
     });
 })();

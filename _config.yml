@@ -4,3 +4,5 @@ exclude:
   - CLAUDE.md
   - README.md
   - test.js
+  - database.rules.json
+  - roster-ratings.txt

@@ -1,0 +1,27 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "p4a": {
+      ".read": true,
+      "players": {
+        "$pid": {
+          ".write": true,
+          ".validate": "!newData.exists() || (newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('name').val().length < 60)"
+        }
+      },
+      "sessions": {
+        "$sid": {
+          ".write": "!data.exists() || newData.exists()",
+          ".validate": "newData.child('date').isString()"
+        }
+      },
+      "meta": {
+        ".write": true
+      },
+      "practice": {
+        ".write": true
+      }
+    }
+  }
+}
