@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0f1c">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>P4A Rankings</title>
+<link rel="stylesheet" href="style.css">
+<style> body { padding-bottom: 20px; } </style>
+</head>
+<body>
+<header>
+  <img class="logo" src="icon.svg" alt="">
+  <div class="grow"><h1>P4A Saturday Rankings</h1><div class="sub" id="sub">Loading…</div></div>
+</header>
+<main id="app"></main>
+<script src="firebase-config.js"></script>
+<script src="engine.js"></script>
+<script src="model.js"></script>
+<script>
+(function () {
+  'use strict';
+  const PERIODS = [[28, 'Last 4 weeks'], [56, 'Last 2 months'], [182, 'Last 6 months'], [0, 'All time']];
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const $app = document.getElementById('app');
+  let period = 56, sort = 'pfg', days = [], updated = null;
+
+  function render() {
+    let since = null;
+    if (period) { const d = new Date(); d.setDate(d.getDate() - period); since = d.toISOString().slice(0, 10); }
+    const all = Engine.rankings(days, since, sort, 0);
+    const maxGames = all.reduce((m, x) => Math.max(m, x.games), 0);
+    const minGames = Math.max(5, Math.round(maxGames * 0.4));
+    const list = Engine.rankings(days, since, sort, minGames);
+    const nDays = days.filter((d) => !since || d.date >= since).length;
+    const latest = days.slice().sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+    const chip = (on, act, val, label) => `<button class="${on ? 'on' : ''}" data-${act}="${val}">${label}</button>`;
+    const needMin = sort !== 'wins';
+    const HEAD = { pfg: 'Pts/G', diff: '+/-', pct: 'Win%', ppg: 'Crt/G' };
+    const val = (x) => ({ pfg: x.pfg.toFixed(1), diff: (x.diff > 0 ? '+' : '') + x.diff.toFixed(1), pct: Math.round(x.pct * 100) + '%', ppg: x.ppg.toFixed(2) }[sort]);
+    const NOTE = { pfg: 'Points: average game points scored. Every point counts, even in a loss.', diff: '+/-: points scored minus allowed, per game.', pct: 'Win %: share of games won.', ppg: 'Court: a win on a higher court is worth more.' };
+    const latestRows = latest ? Object.entries(latest.stats).map(([name, x]) => ({ name, ...x }))
+      .sort((a, b) => (b.pf || 0) - (a.pf || 0) || b.wins - a.wins) : [];
+    $app.innerHTML = `
+      <div class="card">
+        <h2>Leaderboard</h2>
+        <div class="seg" style="margin-bottom:8px">${PERIODS.map(([v, l]) => chip(period === v, 'period', v, l)).join('')}</div>
+        <div class="seg" style="margin-bottom:10px">${chip(sort === 'pfg', 'sort', 'pfg', 'Points')}${chip(sort === 'diff', 'sort', 'diff', '+/-')}${chip(sort === 'pct', 'sort', 'pct', 'Win %')}${chip(sort === 'ppg', 'sort', 'ppg', 'Court')}</div>
+        ${list.length ? `<table>
+          <tr><th></th><th>Player</th><th>${HEAD[sort]}</th><th>W-L</th><th>Days</th></tr>
+          ${list.map((x, i) => `<tr class="${needMin && !x.qualified ? 'dim' : ''}"><td class="rk">${i < 3 && (!needMin || x.qualified) ? ['🥇', '🥈', '🥉'][i] : i + 1}</td><td>${esc(x.id)}</td>
+            <td class="hl">${val(x)}</td><td>${x.wins}-${x.games - x.wins}</td><td>${x.days}</td></tr>`).join('')}
+        </table>
+        <p class="muted small">${nDays} Saturday${nDays === 1 ? '' : 's'}. ${NOTE[sort]}${needMin ? ' Needs ' + minGames + '+ games to rank.' : ''}</p>`
+        : '<p class="muted">No games in this period yet.</p>'}
+      </div>
+      ${latest ? `<div class="card">
+        <h2>Latest: ${esc(latest.date)}</h2>
+        <table>
+          <tr><th></th><th>Player</th><th>Pts</th><th>+/-</th><th>W-L</th></tr>
+          ${latestRows.map((x, i) => `<tr><td class="rk">${i + 1}</td><td>${esc(x.name)}</td><td class="hl">${x.pf || 0}</td><td>${(x.pf || 0) - (x.pa || 0) > 0 ? '+' : ''}${(x.pf || 0) - (x.pa || 0)}</td><td>${x.wins}-${x.games - x.wins}</td></tr>`).join('')}
+        </table>
+      </div>` : ''}`;
+  }
+
+  $app.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.period != null) period = Number(b.dataset.period);
+    if (b.dataset.sort) sort = b.dataset.sort;
+    render();
+  });
+
+  // Live data straight from the group database (read-only).
+  fetch(window.P4A_FIREBASE.databaseURL + '/p4a.json', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : {}))
+    .catch(() => ({}))
+    .then((data) => {
+      data = data || {};
+      const names = data.players || {};
+      days = Object.entries(data.sessions || {})
+        .map(([id, raw]) => Model.dayFrom(Model.toSession(id, raw)))
+        .filter(Boolean)
+        .map((d) => Model.dayByName(d, names));
+      const liveDates = new Set(days.map((d) => d.date));
+      Object.values((data.meta && data.meta.history) || {}).forEach((h) => {
+        if (h && h.stats && !liveDates.has(h.date)) days.push(Model.dayByName({ date: h.date, stats: h.stats, games: [] }, names));
+      });
+      document.getElementById('sub').textContent = days.length
+        ? 'Live · ' + days.length + ' session' + (days.length === 1 ? '' : 's')
+        : 'No games yet';
+      render();
+    });
+})();
+</script>
+</body>
+</html>

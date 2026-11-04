@@ -5,6 +5,8 @@
 - A small hot-streak nudge (`formBump`, default 0.05 rating per net win today) lets a hot player move up.
 - **Court variety (`mixGap`, default 0.3):** with steady ratings, the same 4 would share a court all morning. Players within 0.3 rating can swap between neighboring courts when it reduces repeat meetings (cost = sum of squared "shared a court" counts). Nobody moves more than one court from their rating spot. Sims (8 rounds): each player meets about 2x more people (6.6 → 12.2 at 20 players), and the average rating gap on a court goes 0.30 → 0.50.
 - **Coming back from a sit-out (Bilal asked):** returners are never moved by the variety shuffle; they go straight to their rating spot. Sims: court-1 players come back to court 1 59%, court 2 36%, court 3 5% (only when their rating sits near the court 2/3 line or they've been losing today), never court 4.
+- **Zone rule (owner, 2026-11-04: "i dont want court 1 losers dropping 2 courts"):** anyone who played last round lands within ONE court of where they played. It's enforced in `mixCourts` (swap constraint) and hard-enforced by `keepZones` after placement; test.js asserts max move = 1.
+- **Ladder lean** (`lean`, default 0.8): variety swaps prefer winner one court up / loser one court down. Sims: court-1 losers → court 2 at most (67%), court-1 winners stay 83%, court 2/4/5 winners climb 55–64%, variety ~10.8 opponents, avg court rating gap 0.44.
 - Optional ladder mode in Settings (Claim the Throne style: winners up, losers down).
 - Partners split every round. Cost order: never last round's partner (+100), then fewer repeat partners (+10 each), then even teams.
 

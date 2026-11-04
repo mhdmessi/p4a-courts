@@ -170,3 +170,25 @@ console.log('ALL TESTS PASSED');
   console.log('roster paste: ok');
 }
 console.log('ALL TESTS PASSED (incl. rankings)');
+
+// Zone rule: nobody who played last round moves more than one court (rating mode).
+{
+  let worst = 0;
+  for (const [n, c] of [[16, 4], [17, 4], [20, 5], [21, 5], [22, 5], [14, 3]]) for (let seed = 1; seed <= 25; seed++) {
+    const R = E.rng(seed * 101 + n), ratings = {}, players = [];
+    for (let i = 0; i < n; i++) { players.push({ id: 'p' + i, present: true, joinRound: 0, joinCredit: 0 }); ratings['p' + i] = 2.8 + R() * 1.4; }
+    const s = { seed, courts: c, players, rounds: [], date: 'x' };
+    for (let r = 0; r < 8; r++) {
+      const rd = E.generateRound(s, { ratings });
+      if (r > 0) s.rounds[r - 1].courts.forEach((cc, k) => [...cc.a, ...cc.b].forEach((id) => {
+        const nk = rd.courts.findIndex((x) => [...x.a, ...x.b].includes(id));
+        if (nk >= 0) worst = Math.max(worst, Math.abs(nk - k));
+      }));
+      rd.courts.forEach((cc) => { const a = R() < 0.5; cc.sa = a ? 11 : 6; cc.sb = a ? 6 : 11; });
+      s.rounds.push(rd);
+    }
+  }
+  assert(worst <= 1, 'someone moved ' + worst + ' courts');
+  console.log('zone rule: max court move between rounds = ' + worst);
+}
+console.log('ALL TESTS PASSED (incl. zones)');

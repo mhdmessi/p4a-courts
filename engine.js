@@ -46,7 +46,7 @@
         id: p.id, games: 0, wins: 0, points: 0, pf: 0, pa: 0, sg: 0,
         sits: p.joinRound == null ? 0 : (p.joinCredit || 0),
         lastSat: -1, pos: null, lastWon: false,
-        partners: {}, met: {}, lastPartner: null, lastRoundPlayed: -1, streak: 0,
+        partners: {}, met: {}, lastPartner: null, lastRoundPlayed: -1, streak: 0, lastCourt: null, lastCourtRound: -1,
       };
     }
     session.rounds.forEach((round, r) => {
@@ -69,6 +69,7 @@
             const mate = team[1 - i];
             s.partners[mate] = (s.partners[mate] || 0) + 1;
             s.lastPartner = mate;
+            s.lastCourt = k; s.lastCourtRound = r;
             s.lastRoundPlayed = r;
             if (w) {
               s.games++;
@@ -118,9 +119,15 @@
   // Swap players between neighboring courts when their ratings are within `gap`
   // and it cuts down how often the same people have shared a court today.
   // Nobody moves more than one court from their rating spot.
-  function mixCourts(order, n, st, eff, gap, locked) {
+  // Zone rule: anyone who played last round moves at most one court from where they played.
+  // Ladder lean: prefer a winner one court up and a loser one court down (soft; ratings stay the base).
+  function mixCourts(order, n, st, eff, gap, locked, r, lean) {
     if (n < 2 || !gap) return;
     locked = locked || new Set();
+    const L = lean == null ? 0.8 : lean;
+    const played = (id) => st[id].lastCourtRound === r - 1 && st[id].lastCourt !== null;
+    const okAt = (id, c) => !played(id) || Math.abs(c - Math.min(st[id].lastCourt, n - 1)) <= 1;
+    const wantAt = (id) => (played(id) ? Math.max(0, Math.min(n - 1, st[id].lastCourt + (st[id].lastWon ? -1 : 1))) : null);
     const home = {};
     order.forEach((id, i) => { home[id] = Math.floor(i / 4); });
     const courtOf = (i) => Math.floor(i / 4);
@@ -128,6 +135,7 @@
       const q = order.slice(k * 4, k * 4 + 4);
       let c = 0;
       for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) c += (st[q[i]].met[q[j]] || 0) ** 2;
+      for (const id of q) { const w = wantAt(id); if (w !== null) c += L * Math.abs(k - w); }
       return c;
     };
     for (let pass = 0; pass < 3; pass++) {
@@ -139,6 +147,7 @@
             if (locked.has(x) || locked.has(y)) continue;   // players back from a sit-out keep their rating spot
             if (Math.abs(eff(x) - eff(y)) > gap) continue;
             if (Math.abs(courtOf(j) - home[x]) > 1 || Math.abs(courtOf(i) - home[y]) > 1) continue;
+            if (!okAt(x, courtOf(j)) || !okAt(y, courtOf(i))) continue;
             const before = costAt(k) + costAt(k + 1);
             order[i] = y; order[j] = x;
             const after = costAt(k) + costAt(k + 1);
@@ -148,6 +157,33 @@
         }
       }
       if (!improved) break;
+    }
+  }
+
+  // Hard zone rule: anyone who played last round lands within one court of where they played.
+  // Fixes the rare case where the rating order alone would move someone two courts (e.g. a
+  // court-1 loser dropping to court 3) by swapping with the nearest player who can take that spot.
+  function keepZones(order, n, st, r) {
+    if (n < 3) return;
+    const played = (id) => st[id] && st[id].lastCourtRound === r - 1 && st[id].lastCourt !== null;
+    const from = (id) => Math.min(st[id].lastCourt, n - 1);
+    const ok = (id, c) => !played(id) || Math.abs(c - from(id)) <= 1;
+    for (let pass = 0; pass < 4; pass++) {
+      let fixed = false;
+      for (let i = 0; i < order.length; i++) {
+        const x = order[i], cx = Math.floor(i / 4);
+        if (ok(x, cx)) continue;
+        const goal = cx > from(x) ? from(x) + 1 : from(x) - 1;   // nearest allowed court
+        let best = -1, bestCost = Infinity;
+        for (let j = goal * 4; j < goal * 4 + 4 && j < order.length; j++) {
+          const y = order[j];
+          if (!ok(y, cx)) continue;
+          const cost = Math.abs(cx - (played(y) ? from(y) : cx));
+          if (cost < bestCost) { bestCost = cost; best = j; }
+        }
+        if (best >= 0) { order[i] = order[best]; order[best] = x; fixed = true; }
+      }
+      if (!fixed) break;
     }
   }
 
@@ -190,7 +226,8 @@
       const eff = (id) => (ratings[id] || 0) + bump * (st[id].wins - (st[id].games - st[id].wins));
       playing.sort((x, y) => eff(y) - eff(x) || tb[x] - tb[y]);
       const back = new Set(r > 0 ? session.rounds[r - 1].sitting : []);
-      mixCourts(playing, n, st, eff, opts.mixGap == null ? 0.3 : opts.mixGap, back);
+      mixCourts(playing, n, st, eff, opts.mixGap == null ? 0.3 : opts.mixGap, back, r, opts.lean);
+      keepZones(playing, n, st, r);
     } else {
       // Ladder: winners up, losers down; players keep their spot through a sit-out.
       // New players: by rating on the first round, bottom court after that.
