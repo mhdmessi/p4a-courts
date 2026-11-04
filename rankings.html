@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f3d2e">
+<title>P4A Rankings</title>
+<link rel="stylesheet" href="style.css">
+<style> body { padding-bottom: 20px; } </style>
+</head>
+<body>
+<header>
+  <h1>P4A Saturday Rankings</h1>
+  <div class="sub" id="sub">Loading…</div>
+</header>
+<main id="app"></main>
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  const PERIODS = [[28, 'Last 4 weeks'], [56, 'Last 2 months'], [182, 'Last 6 months'], [0, 'All time']];
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const $app = document.getElementById('app');
+  let period = 56, sort = 'pct', days = [], updated = null;
+
+  function render() {
+    let since = null;
+    if (period) { const d = new Date(); d.setDate(d.getDate() - period); since = d.toISOString().slice(0, 10); }
+    const all = Engine.rankings(days, since, sort, 0);
+    const maxGames = all.reduce((m, x) => Math.max(m, x.games), 0);
+    const minGames = Math.max(5, Math.round(maxGames * 0.4));
+    const list = Engine.rankings(days, since, sort, minGames);
+    const nDays = days.filter((d) => !since || d.date >= since).length;
+    const latest = days.slice().sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+    const chip = (on, act, val, label) => `<button class="chip ${on ? 'in' : ''}" data-${act}="${val}">${label}</button>`;
+    const latestRows = latest ? Object.entries(latest.stats).map(([name, x]) => ({ name, ...x }))
+      .sort((a, b) => b.points - a.points || b.wins - a.wins) : [];
+    $app.innerHTML = `
+      <div class="card">
+        <h2>Leaderboard</h2>
+        <div class="chips" style="margin-bottom:8px">${PERIODS.map(([v, l]) => chip(period === v, 'period', v, l)).join('')}</div>
+        <div class="chips" style="margin-bottom:10px">${chip(sort === 'pct', 'sort', 'pct', 'Win %')}${chip(sort === 'wins', 'sort', 'wins', 'Most wins')}${chip(sort === 'points', 'sort', 'points', 'Court points')}</div>
+        ${list.length ? `<table>
+          <tr><th>#</th><th>Player</th><th>Win%</th><th>W-L</th><th>Pts</th><th>Days</th></tr>
+          ${list.map((x, i) => `<tr style="${sort === 'pct' && !x.qualified ? 'opacity:.5' : ''}"><td>${i < 3 && (sort !== 'pct' || x.qualified) ? ['🥇', '🥈', '🥉'][i] : i + 1}</td><td>${esc(x.id)}</td>
+            <td><b>${Math.round(x.pct * 100)}%</b></td><td>${x.wins}-${x.games - x.wins}</td><td>${x.points}</td><td>${x.days}</td></tr>`).join('')}
+        </table>
+        <p class="muted">${nDays} Saturday${nDays === 1 ? '' : 's'} counted.${sort === 'pct' ? ' Win % needs ' + minGames + '+ games to rank (greyed out = not enough yet).' : ''} Court points: wins on higher courts count more.</p>`
+        : '<p class="muted">No games in this period yet.</p>'}
+      </div>
+      ${latest ? `<div class="card">
+        <h2>Latest: ${esc(latest.date)}</h2>
+        <table>
+          <tr><th>#</th><th>Player</th><th>Pts</th><th>W-L</th><th>Sat</th></tr>
+          ${latestRows.map((x, i) => `<tr><td>${i + 1}</td><td>${esc(x.name)}</td><td><b>${x.points}</b></td><td>${x.wins}-${x.games - x.wins}</td><td>${x.sits}</td></tr>`).join('')}
+        </table>
+      </div>` : ''}`;
+  }
+
+  $app.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.period != null) period = Number(b.dataset.period);
+    if (b.dataset.sort) sort = b.dataset.sort;
+    render();
+  });
+
+  fetch('data/results.json?t=' + Date.now(), { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : { days: {} }))
+    .catch(() => ({ days: {} }))
+    .then((data) => {
+      days = Object.values(data.days || {});
+      updated = data.updated;
+      document.getElementById('sub').textContent = updated
+        ? 'Updated ' + new Date(updated).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+        : 'No results published yet';
+      render();
+    });
+})();
+</script>
+</body>
+</html>
