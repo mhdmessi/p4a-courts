@@ -28,6 +28,7 @@
     currentId: prefs.currentId || null,
     me: prefs.me || null,
     online: true,
+    history: cache.history || {},
     loaded: { players: false, sessions: false },
   };
   convertSessions();
@@ -41,7 +42,7 @@
     localStorage.setItem(PREF_KEY, JSON.stringify({ rankPeriod: S.rankPeriod, rankSort: S.rankSort, currentId: S.currentId, me: S.me }));
   }
   function saveCache() {
-    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ players: S.roster, sessions: S.rawSessions, settings: S.settings })); } catch (e) { /* full */ }
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ players: S.roster, sessions: S.rawSessions, settings: S.settings, history: S.history })); } catch (e) { /* full */ }
   }
   function convertSessions() {
     S.sessions = {};
@@ -178,7 +179,14 @@
 
   // ---------- history & ratings ----------
   function days() {
-    if (!daysCache) daysCache = Object.values(S.sessions).map(M.dayFrom).filter(Boolean);
+    if (!daysCache) {
+      const live = Object.values(S.sessions).map(M.dayFrom).filter(Boolean);
+      const liveDates = new Set(live.map((d) => d.date));
+      // Past Saturdays imported from Pickleheads (standings only, no game-by-game detail).
+      const imported = Object.values(S.history || {}).filter((d) => d && d.stats && !liveDates.has(d.date))
+        .map((d) => ({ date: d.date, stats: d.stats, games: [], imported: true }));
+      daysCache = live.concat(imported);
+    }
     return daysCache;
   }
   function allGames() {
@@ -971,6 +979,7 @@
   // Start live sync last, after everything above is defined.
   root.child('players').on('value', (snap) => { S.roster = snap.val() || {}; S.loaded.players = true; dataChanged(); });
   root.child('sessions').on('value', (snap) => { S.rawSessions = snap.val() || {}; S.loaded.sessions = true; convertSessions(); ensureSession(); dataChanged(); });
+  root.child('meta/history').on('value', (snap) => { S.history = snap.val() || {}; daysCache = null; dataChanged(); });
   root.child('meta/settings').on('value', (snap) => { S.settings = { ...SETTINGS, ...(snap.val() || {}) }; dataChanged(); });
   firebase.database().ref('.info/connected').on('value', (snap) => { S.online = !!snap.val(); dataChanged(); });
 })();

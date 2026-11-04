@@ -83,6 +83,10 @@
         .map(([id, raw]) => Model.dayFrom(Model.toSession(id, raw)))
         .filter(Boolean)
         .map((d) => Model.dayByName(d, names));
+      const liveDates = new Set(days.map((d) => d.date));
+      Object.values((data.meta && data.meta.history) || {}).forEach((h) => {
+        if (h && h.stats && !liveDates.has(h.date)) days.push(Model.dayByName({ date: h.date, stats: h.stats, games: [] }, names));
+      });
       document.getElementById('sub').textContent = days.length
         ? 'Live · ' + days.length + ' session' + (days.length === 1 ? '' : 's')
         : 'No games yet';

@@ -13,3 +13,9 @@
 - `practice/...`: the same shape, used by `?practice=1` (sandbox; never mixes with real data)
 - Writes are granular (a single score, a single RSVP, a single round), so several phones can enter scores at once without overwriting each other.
 - `model.js` converts DB ↔ engine shapes (`toSession`, `roundToDb`, `dayFrom`). Rankings are computed from every session's games. `rankings.html` reads `/p4a.json` over REST.
+
+## Imported history
+- `meta/history/{pickleheadsSlug}`: `{date, name, source:'pickleheads', stats:{pid:{wins, games, pf, pa, sg, points, sits}}}`. These are standings only, with no per-game partner data. `points` = Pickleheads weightedPoints/10.
+- Source: the Pickleheads connector (`claude mcp add --scope user`, authenticated 2026-11-04) → `list_competitions` + `get_competition`. Only sessions the owner played are listed (Mubeen organizes; his account would see every session). 13 Saturdays imported, 6/13 to 10/24.
+- The raw data file `import/pickleheads-history.txt` stays local (gitignored: other people's names and records). Re-run: `python3 import/import_pickleheads.py import/pickleheads-history.txt` (idempotent per slug; aliases and guests are handled in the script).
+- The connector also returns each player's DUPR rating per competition, which is a sanctioned way to refresh ratings.

@@ -6,3 +6,4 @@ exclude:
   - test.js
   - database.rules.json
   - roster-ratings.txt
+  - import
