@@ -2,9 +2,12 @@
 import json, sys, urllib.request
 
 DB = 'https://p4a-courts-87196-default-rtdb.firebaseio.com/p4a'
-ALIAS = {'mohammad salam': 'Mohammad Abdul Salam', 'sahl a': 'Sahl Ali', 'syed saleem': 'Syed Saleem',
-         'moiz lakhani': 'MoiZ Lakhani', 'wasim c': 'Wasim Chowdhury', 'yusuf aadam': 'Yusuf Aadam'}
-SKIP = {'raz guest', 'roz  guest', "asim's guest", 'mas mas', 'm m'}
+import os
+# Name matching lives in import/names.json (local only: it has people's names).
+_p = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'names.json')
+_names = json.load(open(_p)) if os.path.exists(_p) else {}
+ALIAS = {k.lower(): v for k, v in _names.get('alias', {}).items()}
+SKIP = {x.lower() for x in _names.get('skip', [])}
 
 def req(method, path, body=None):
     data = None if body is None else json.dumps(body).encode()
