@@ -166,9 +166,16 @@
 
     // 1) Who sits: fewest sits so far sit first; ties go to whoever sat longest ago.
     const sitCount = present.length - 4 * n;
+    // Fairness first (fewest sits). Among equals, protect winners: whoever is on a
+    // losing run sits before whoever is on a winning streak (opts.protectWinners, default on).
+    const protect = opts.protectWinners !== false;
     const bySit = present.slice().sort((x, y) => {
       const a = st[x.id], b = st[y.id];
-      return a.sits - b.sits || a.lastSat - b.lastSat || tb[x.id] - tb[y.id];
+      return a.sits - b.sits
+        || ((a.lastSat === r - 1) - (b.lastSat === r - 1))   // never sit twice in a row if avoidable
+        || (protect ? a.streak - b.streak : 0)
+        || a.lastSat - b.lastSat
+        || tb[x.id] - tb[y.id];
     });
     const sitting = bySit.slice(0, sitCount).map((p) => p.id);
     const sitSet = new Set(sitting);

@@ -10,7 +10,7 @@
     roster: {},
     settings: {
       courts: 5, rounds: 8, mode: 'rating', formBump: 0.05, mixGap: 0.3, defaultRating: 3.0,
-      target: 11, winBy: 2, scoreType: 'SIDEOUT', timerMin: 0, timerAuto: true,
+      protectWinners: true, target: 11, winBy: 2, scoreType: 'SIDEOUT', timerMin: 0, timerAuto: true,
       event: 'P4A Saturday 7am', location: 'Pickleball4ALL',
     },
     session: null,
@@ -164,7 +164,7 @@
   function nextRound() {
     const s = sess();
     const round = E.generateRound(s, {
-      ratings: ratings(), mode: S.settings.mode, formBump: Number(S.settings.formBump), mixGap: Number(S.settings.mixGap),
+      ratings: ratings(), mode: S.settings.mode, formBump: Number(S.settings.formBump), mixGap: Number(S.settings.mixGap), protectWinners: S.settings.protectWinners !== false,
     });
     round.createdAt = Date.now();
     round.timed = Number(S.settings.timerMin) > 0;
@@ -491,7 +491,8 @@
           <input data-act="set" data-key="formBump" inputmode="decimal" value="${esc(st.formBump)}"></label>
         <label class="f">Rating for players without one
           <input data-act="set" data-key="defaultRating" inputmode="decimal" value="${esc(st.defaultRating)}"></label>
-        <p class="muted small" style="margin:0">Sit-outs never depend on wins or losses: whoever has sat the least sits next.</p>
+        <label class="f">Protect winners from sitting ${seg('protectWinners', [[true, 'On'], [false, 'Off']])}</label>
+        <p class="muted small" style="margin:0">Sit-outs stay equal: whoever has sat the least sits next, and nobody sits twice in a row. With protection on, among players due to sit, those who just lost sit before anyone on a winning streak.</p>
       </div>
       <div class="card">
         <h2>DUPR file</h2>

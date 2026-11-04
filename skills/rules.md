@@ -8,7 +8,9 @@
 - Partners split every round. Cost order: never last round's partner (+100), then fewer repeat partners (+10 each), then even teams.
 
 ## Sit-outs (the main reason this app exists)
-- Whoever has sat the **least** sits next. Ties go to whoever sat longest ago, then a seeded random pick. Wins and losses **never** affect sit-outs.
+- Whoever has sat the **least** sits next (hard rule, the max gap stays 1). Then: never sit someone two rounds in a row if anyone else can sit.
+- **Protect winners (Bilal's rule, 2026-11-04, setting on by default):** among players tied on sits, the one on a losing run sits before the one on a winning streak (sorted by `streak`). Sims: winners went from 50% of sit-outs to 6%, with fairness unchanged. Bilal said: "u also need some sort of policy where it doesnt sit out people who r winnign".
+- Then whoever sat longest ago, then a seeded random pick. Original Pickleheads complaint: sitting out *losers* without limits made some sit 50%. That can't happen here, because the sit counts stay equal.
 - Any round a checked-in player doesn't play counts as a sit, including stepping away.
 - Late arrival: credited `min(rounds so far, current max sits)` sits, so they go straight onto a court.
 - Guarantee: the gap between any two players' sit counts is at most 1 (`test.js` checks 1,200 simulated sessions).
