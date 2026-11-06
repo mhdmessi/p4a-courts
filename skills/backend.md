@@ -21,7 +21,7 @@
 - The connector also returns each player's DUPR rating per competition, which is a sanctioned way to refresh ratings.
 
 ## Organizer lock (2026-11-04)
-- The owner: "we dont want anybody changing DUPR ... only for me". Firebase Auth with the Google provider is enabled; `mhdmessi.github.io` is an authorized domain.
+- The owner: "we dont want anybody changing DUPR ... only for me". Firebase Auth with the Google provider is enabled; authorized domains: `mhdmessi.github.io` (old) and `mhdstudios.github.io` (repo moved to the mhdstudios org 2026-11-06).
 - `p4a/meta/admins/{uid}`: the first signed-in user claims organizer ("Make me organizer" shows only while there are no admins); after that only admins can add admins.
 - Rules: `players/{id}` writes are admin-only, except creating `name` once (new players can add themselves). Ratings and DUPR IDs are admin-only. `meta/history` and `meta/ratingsSync` are admin-only. Sessions, settings and practice stay open.
 - **Consequence:** the Python import scripts (unauthenticated REST) can no longer write ratings or history. Run rating syncs in the owner's browser while they're signed in as organizer (Firebase SDK in the app page), or have the owner sign in first.
