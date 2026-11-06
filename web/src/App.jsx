@@ -83,6 +83,10 @@ export default function App() {
         </AnimatePresence>
       </main>
 
+      <footer className="px-4 pb-4 pt-10 text-center text-xs text-ink-mute lg:px-8">
+        Designed and built by <a href="https://mhdstudios.com" target="_blank" rel="noopener" className="font-bold text-ink-soft hover:text-ink">MHD Studios</a>
+      </footer>
+
       <nav className="glass fixed inset-x-0 bottom-0 z-30 border-t border-white/[.06] pb-[env(safe-area-inset-bottom)] lg:hidden">
         <div className="mx-auto flex max-w-xl justify-around px-2 py-1.5">
           {TABS.map(([key, label, Icon]) => {
